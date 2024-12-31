@@ -1,0 +1,4 @@
+FirefoxModifier.dylib
+*.prefPane/**
+.DS_Store
+FirefoxModifier
