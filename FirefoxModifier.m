@@ -142,36 +142,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 }
 
 - (void)downloadFileFinished:(NSNotification *)notification {
-	// The only way to ensure the Dock sees this file is to temporarily copy it somewhere else and then put it back.
-	
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-		NSString *downloadedFilePath = notification.object;
-		if ([downloadedFilePath hasPrefix:@"/Volumes/"]) {
-			// The downloaded file is not on the startup disk.
-			// Moving it to a directory on our startup disk would be expensive. It must be moved within the same disk.
-			NSString *tempDirName = [[NSUUID UUID] UUIDString];
-			NSString *tempDirPath = [[downloadedFilePath stringByDeletingLastPathComponent] stringByAppendingPathComponent:tempDirName];
-			[[NSFileManager defaultManager] createDirectoryAtPath:tempDirPath
-											withIntermediateDirectories:NO
-											attributes:@{NSFilePosixPermissions: @0755}
-											error:nil];
-			NSString *tempFilePath = [tempDirPath stringByAppendingPathComponent:[downloadedFilePath lastPathComponent]];
-			[[NSFileManager defaultManager] moveItemAtPath:downloadedFilePath toPath:tempFilePath error:nil];
-			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-				[[NSFileManager defaultManager] moveItemAtPath:tempFilePath toPath:downloadedFilePath error:nil];
-				[[NSFileManager defaultManager] removeItemAtPath:tempDirPath error:nil];
-			});
-		} else {
-			// Use NSTemporaryDirectory as our temporary directory.
-			NSString *tempFilePath = [NSTemporaryDirectory() stringByAppendingPathComponent:[downloadedFilePath lastPathComponent]];
-			[[NSFileManager defaultManager] removeItemAtPath:tempFilePath error:nil];
-			[[NSFileManager defaultManager] moveItemAtPath:downloadedFilePath toPath:tempFilePath error:nil];
-			NSLog(@"Temp file path: %@", tempFilePath);
-			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-				[[NSFileManager defaultManager] moveItemAtPath:tempFilePath toPath:downloadedFilePath error:nil];
-			});
-		}
-	});
+	//Coordinate a write operation on the file but don't make any actual changes.
+	NSFileCoordinator *fileCoordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
+	[fileCoordinator coordinateWritingItemAtURL:[NSURL fileURLWithPath:notification.object] options:0 error:nil byAccessor:^(NSURL *newURL) {}];
 }
 
 @end
