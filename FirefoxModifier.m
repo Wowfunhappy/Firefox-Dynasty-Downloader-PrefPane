@@ -157,7 +157,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 											error:nil];
 			NSString *tempFilePath = [tempDirPath stringByAppendingPathComponent:[downloadedFilePath lastPathComponent]];
 			[[NSFileManager defaultManager] moveItemAtPath:downloadedFilePath toPath:tempFilePath error:nil];
-			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 				[[NSFileManager defaultManager] moveItemAtPath:tempFilePath toPath:downloadedFilePath error:nil];
 				[[NSFileManager defaultManager] removeItemAtPath:tempDirPath error:nil];
 			});
@@ -167,7 +167,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 			[[NSFileManager defaultManager] removeItemAtPath:tempFilePath error:nil];
 			[[NSFileManager defaultManager] moveItemAtPath:downloadedFilePath toPath:tempFilePath error:nil];
 			NSLog(@"Temp file path: %@", tempFilePath);
-			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 				[[NSFileManager defaultManager] moveItemAtPath:tempFilePath toPath:downloadedFilePath error:nil];
 			});
 		}
