@@ -25,5 +25,6 @@ cp -R libs "${OUTPUT_DIR}/Contents/"
 
 # Compile the Objective-C code
 clang -framework Cocoa -framework PreferencePanes -o "${OUTPUT_DIR}/Contents/MacOS/${TITLE}" -bundle "PrefPane.m"
+rm FirefoxModifier
 
 echo "Build complete. You can find the PrefPane at ${OUTPUT_DIR}"
