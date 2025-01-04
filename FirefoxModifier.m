@@ -241,6 +241,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Redo"];
 		[self removeItemWithTitle:@"Delete"];
 		[self removeItemWithTitle:@"Select All"];
+		[self removeItemWithTitle:@"Manage Passwords"];
 	}
 	//Multiple Locations
 	[self renameItemWithTitle:@"Save Page As…" to:@"Save As…"];

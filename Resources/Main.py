@@ -9,6 +9,7 @@ import tempfile
 import zipfile
 import shutil
 import re
+import time
 
 def get_path_to_me(escape_chars=False):
 	path = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
@@ -170,7 +171,9 @@ if not firefox_path or not is_on_startup_disk(firefox_path) or is_in_trash(firef
 
 shutil.rmtree(firefox_path + "/Contents", ignore_errors=True)
 shutil.copytree(temp_directory, firefox_path + "/Contents")
-run_shell("sleep 1 && touch " + firefox_path)
+time.sleep(1)
+run_shell("chmod -R 755 " + firefox_path)
+run_shell("touch " + firefox_path)
 
 shutil.rmtree(temp_directory)
 run_applescript('display dialog "Your new copy of Firefox Dynasty has been installed." buttons {"OK"}')
