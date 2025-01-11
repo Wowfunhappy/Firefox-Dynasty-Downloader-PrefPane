@@ -3,9 +3,6 @@
 #include <Carbon/Carbon.h>
 #import "ZKSwizzle.h"
 
-
-
-
 void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	// Conveniently, this will NOT retrigger our swizzled sendEvent method!
 	// So if we send, for example, ⌘R, that will always make Firefox reload the page,
@@ -48,11 +45,14 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 @end
 
 
-@interface myNSApplication_ : NSApplication
+@interface FFM_NSApplication : NSApplication
+#ifdef SSB_MODE
+- (void)handleQuitScriptCommand:(id)arg1;
+#endif
 @end
 
 
-@implementation myNSApplication_
+@implementation FFM_NSApplication
 
 - (void)sendEvent:(NSEvent *)event {
 	// Firefox does not handle user-defined key equivalents properly
@@ -63,7 +63,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[event type] == NSKeyDown &&
 		[event modifierFlags] & (NSCommandKeyMask | NSAlternateKeyMask | NSControlKeyMask)
 		//We don't check NSShiftKeyMask because shortcuts aren't allowed to use Shift as the only modifier key.
-	) {	
+	) { 
 		// Query user-defined key equivalents
 		NSDictionary *userKeyEquivalents = [[NSUserDefaults standardUserDefaults] objectForKey:@"NSUserKeyEquivalents"];
 
@@ -78,6 +78,38 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 				}
 			}
 		}
+		
+#ifdef SSB_MODE
+		NSArray *shortcutBlacklist = @[
+			@"@t",		// new tab
+			@"$@p",		// new private window
+			@"@d",		// bookmark current tab
+			@"@j",		// downloads
+			@"$@a",		// add-ons and themes
+			@"@s",		// save page as
+			@"@,",		// settings
+			@"~@i",		// web developer tools
+			@"$~@i",	// browser toolbox
+			@"$@j",		// browser console
+			@"~@m",		// responsive design mode
+			@"@u",		// page source
+			// Switching Tabs
+			@"@1",
+			@"@2",
+			@"@3",
+			@"@4",
+			@"@5",
+			@"@6",
+			@"@7",
+			@"@8",
+			@"@9",
+		];
+		for (NSString *shortcut in shortcutBlacklist) {
+			if ([self event:event matchesShortcut:shortcut]) {
+				return;
+			}
+		}
+#endif
 	}
 	// Pass event to Firefox to handle normally.
 	ZKOrig(void, event);
@@ -133,32 +165,65 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 }
 
 // Fix: Downloaded files sometimes won't appear in stacks in the Dock.
-- (void) finishLaunching {
+- (void)finishLaunching {
 	ZKOrig(void);
 	[[NSDistributedNotificationCenter defaultCenter] addObserver:self
-													selector:@selector(downloadFileFinished:)
-													name:@"com.apple.DownloadFileFinished"
-													object:nil];
+		selector:@selector(downloadFileFinished:)
+		name:@"com.apple.DownloadFileFinished"
+		object:nil];
 }
 
 - (void)downloadFileFinished:(NSNotification *)notification {
-	//Coordinate a write operation on the file but don't make any actual changes.
+	// Coordinate a write operation on the file but don't make any actual changes.
 	NSFileCoordinator *fileCoordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
-	[fileCoordinator coordinateWritingItemAtURL:[NSURL fileURLWithPath:notification.object] options:0 error:nil byAccessor:^(NSURL *newURL) {}];
+	[fileCoordinator coordinateWritingItemAtURL:[NSURL fileURLWithPath:notification.object]
+					options:0
+					error:nil
+					byAccessor:^(NSURL *newURL) {}
+	];
 }
 
+#ifdef SSB_MODE
+- (void)_checkForTerminateAfterLastWindowClosed:(id)arg1 saveWindows:(BOOL)arg2 {
+	// We'd like to make applicationShouldTerminateAfterLastWindowClosed return YES, but that causes Firefox to freeze.
+	// So we'll do this instead.
+	[self handleQuitScriptCommand:arg1];
+}
+
+- (struct __CFArray *)_createDockMenu:(BOOL)arg1 { 
+	NSMutableArray *menuArray = [(__bridge NSArray *)ZKOrig(struct __CFArray *, arg1) mutableCopy];
+	for (NSDictionary *menuItem in [menuArray reverseObjectEnumerator]) {
+		if ([menuItem[@"name"] isEqualToString:@"New Private Window"]) {
+			[menuArray removeObject:menuItem];
+			break;
+		}
+	}
+	return (__bridge struct __CFArray *)[menuArray copy];
+}
+#endif
+
 @end
 
 
 
 
-@interface myNSWindow : NSWindow
+@interface FFM_NSWindow : NSWindow
 @end
 
 
-@implementation myNSWindow
+@implementation FFM_NSWindow
 
-- (BOOL)makeFirstResponder:(NSResponder *)responder {	
+#ifdef SSB_MODE
+- (void)setTitle:(NSString*) title {
+	if ([title isEqualToString:@"Mozilla Firefox"]) {
+		ZKOrig(void, [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]);
+	} else {
+		ZKOrig(void, title);
+	}
+}
+#endif
+
+- (BOOL)makeFirstResponder:(NSResponder *)responder { 
 	[[NSApp mainMenu] initializeSubmenus];
 	return ZKOrig(BOOL, responder);
 }
@@ -168,10 +233,11 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 
-@interface myNSMenu : NSMenu
+@interface FFM_NSMenu : NSMenu
 @end
 
-@implementation myNSMenu
+
+@implementation FFM_NSMenu
 
 - (void)initializeSubmenus{
 	// Initializing menus ensures that that:
@@ -196,6 +262,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 }
 
 - (void)fixupMenuItems {
+#ifndef SSB_MODE
 	if ([[self title] isEqualToString:NSLocalizedString(@"File", nil)]) {
 		[self renameItemWithTitle:@"Save Page As…" to:@"Save As…"];
 		[self removeItemWithTitle:@"Work Offline"];
@@ -206,7 +273,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self addItemWithTitle:@"Open Location…" atIndex:5 action:@selector(openLocation:) keyEquivalent:@"l"];
 		[self addSeperatorAtIndex:6];
 	}
-	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {		
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {     
 		[self renameItemWithTitle:@"Find in Page…" to:@"Find…"];
 		[self renameItemWithTitle:@"Find Again" to:@"Find Next"];
 		
@@ -252,16 +319,123 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Inspect Accessibility Properties"];
 		[self removeItemWithTitle:@"Save Page As…"];
 	}
-	
+#else
+	if ([[self title] isEqualToString:@"MozillaProject"]) {
+		[self removeItemWithTitle:@"About Firefox"];
+		[self removeItemWithTitle:@"Preferences"];
+		[self renameItemWithTitle:@"Hide Firefox" to:[
+			NSString stringWithFormat:@"Hide %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]
+		]];
+		[self renameItemWithTitle:@"Quit Firefox" to:[
+			NSString stringWithFormat:@"Quit %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]
+		]];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"File", nil)]) {
+		[self removeItemWithTitle:@"New Tab"];
+		[self removeItemWithTitle:@"New Private Window"];
+		[self removeItemWithTitle:@"Open File…"];
+		[self removeItemWithTitle:@"Close Tab"];
+		[self removeItemWithTitle:@"Save Page As…"];
+		[self removeItemWithTitle:@"Work Offline"];
+		[self removeItemWithTitle:@"Import From Another Browser…"];
+		[self removeItemWithTitle:@"Restart (Developer)"];
+		
+		[self addItemWithTitle:@"Open In Browser…" atIndex:4 action:@selector(openInBrowser:) keyEquivalent:@""];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {     
+		[self renameItemWithTitle:@"Find in Page…" to:@"Find…"];
+		[self renameItemWithTitle:@"Find Again" to:@"Find Next"];
+		
+		// `Select All` will sometimes be disabled for no reason. Always enable it.
+		NSMenuItem *selectAllItem = [self itemWithTitle:NSLocalizedString(@"Select All", nil)];
+		[selectAllItem setEnabled:YES];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"View", nil)]) {
+		[self removeItemWithTitle:@"Toolbars"];
+		[self removeItemWithTitle:@"Sidebar"];
+		[self removeItemWithTitle:@"Page Style"];
+		[self removeItemWithTitle:@"Repair Text Encoding"];
+		[self addItemWithTitle:@"Reload" atIndex:0 action:@selector(reloadPage:) keyEquivalent:@"r"];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"History", nil)]) {
+		[self removeItemWithTitle:@"Show All History"];
+		[self removeItemWithTitle:@"Clear Recent History…"];
+		[self removeItemWithTitle:@"Restore Previous Session"];
+		[self removeItemWithTitle:@"Search History"];
+		[self removeItemWithTitle:@"Recently Closed Tabs"];
+		[self removeItemWithTitle:@"Recently Closed Windows"];
+		[self removeItemWithTitle:@"Firefox Privacy Notice — Mozilla"];
+		[self addItemWithTitle:@"Back" atIndex:1 action:@selector(back:) keyEquivalent:@"["];
+		[self addItemWithTitle:@"Forward" atIndex:2 action:@selector(forward:) keyEquivalent:@"]"];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Bookmarks", nil)]) {
+		[[NSApp mainMenu] removeItemWithTitle:@"Bookmarks"];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Tools", nil)]) {
+		[[NSApp mainMenu] removeItemWithTitle:@"Tools"];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Help", nil)]) {
+		//Delete the existing help menu and create a new one.
+		[[NSApp mainMenu] removeItemWithTitle:NSLocalizedString(@"Help", nil)];
+		NSMenuItem *helpMenuItem = [[NSMenuItem alloc] initWithTitle:NSLocalizedString(@"Help", nil)
+														action:nil
+														keyEquivalent:@""];
+		NSMenu *helpMenu = [[NSMenu alloc] initWithTitle:NSLocalizedString(@"Help", nil)];
+		[helpMenuItem setSubmenu:helpMenu];
+		[[NSApp mainMenu] addItem:helpMenuItem];
+		[NSApp setHelpMenu:helpMenu];
+	}
+	else {
+		//Context menu(s)
+		[self removeItemWithTitle:@"Back"];
+		[self removeItemWithTitle:@"Forward"];
+		[self removeItemWithTitle:@"Reload"];
+		[self removeItemWithTitle:@"Stop"];
+		[self removeItemWithTitle:@"Bookmark Page…"];
+		[self removeItemWithTitle:@"Save Page As…"];
+		[self removeItemWithTitle:@"Select All"];
+		[self removeItemWithTitle:@"Take Screenshot"];
+		[self removeItemWithTitle:@"View Page Source"];
+		[self removeItemWithTitle:@"Inspect Accessibility Properties"];
+		[self removeItemWithTitle:@"Inspect"];
+		
+		[self removeItemWithPrefix:@"Search"];
+		[self removeItemWithPrefix:@"Translate"];
+		[self removeItemWithTitle:@"View Selection Source"];
+		[self removeItemWithTitle:@"Print Selection…"];
+		
+		[self removeItemWithTitle:@"Copy Image Link"];
+		[self removeItemWithTitle:@"Save Image As…"];
+		[self removeItemWithTitle:@"Email Image…"];
+		[self removeItemWithTitle:@"Set Image as Desktop Background…"];
+		
+		[self removeItemWithTitle:@"Copy Link"];
+		[self removeItemWithTitle:@"Copy Link Without Site Tracking"];
+		[self removeItemWithTitle:@"Save Link As…"];
+		[self removeItemWithPrefix:@"Bookmark"];
+		[self removeItemWithSuffix:@"in New Tab"];
+		[self removeItemWithSuffix:@"in New Window"];
+		[self removeItemWithSuffix:@"in New Private Window"];
+		
+		[self removeItemWithTitle:@"Check Spelling"];
+		[self removeItemWithTitle:@"Languages"];
+		[self removeItemWithPrefix:@"Add a Keyword"];
+		[self removeItemWithTitle:@"Undo"];
+		[self removeItemWithTitle:@"Redo"];
+		[self removeItemWithTitle:@"Delete"];
+		[self removeItemWithTitle:@"Manage Passwords"];
+	}
+#endif
+
 	[self removeLeadingAndTrailingSeperators];
 	[self update];
 }
 
 - (void)addItemWithTitle:(NSString *)title
-					atIndex:(NSInteger)index
-					action:(SEL)action
-					keyEquivalent:(NSString *)keyEquivalent
-{	
+				atIndex:(NSInteger)index
+				action:(SEL)action
+				keyEquivalent:(NSString *)keyEquivalent
+{   
 	NSInteger menuCount = [self numberOfItems];
 	if (index < 0 && index > menuCount) {
 		index = menuCount;
@@ -352,16 +526,57 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_RightBracket);
 }
 
+#ifdef SSB_MODE
+- (void)openInBrowser:(id)sender {
+	NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+	
+	// Save the current contents of the pasteboard
+	NSArray *types = [pasteboard types];
+	NSMutableDictionary *savedPasteboardItems = [NSMutableDictionary dictionary];
+	for (NSString *type in types) {
+		NSData *data = [pasteboard dataForType:type];
+		if (data) {
+			[savedPasteboardItems setObject:data forKey:type];
+		}
+	}
+	
+	[pasteboard clearContents];
+	
+	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_L);
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_C);
+		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+			NSString *url = [pasteboard stringForType:NSPasteboardTypeString];
+			
+			// Restore the saved pasteboard contents
+			[pasteboard clearContents];
+			if (savedPasteboardItems.count > 0) {
+				[pasteboard declareTypes:[savedPasteboardItems allKeys] owner:nil];
+				for (NSString *type in savedPasteboardItems) {
+					NSData *data = savedPasteboardItems[type];
+					[pasteboard setData:data forType:type];
+				}
+			}
+			
+			NSTask *task = [[NSTask alloc] init];
+			task.launchPath = @"/usr/bin/open";
+			task.arguments = @[url];
+			[task launch];
+		});
+	});
+}
+#endif
+
 @end
 
 
 
 
-@interface __myNSArrayM : NSMutableArray
+@interface FFM___myNSArrayM : NSMutableArray
 @end
 
 
-@implementation __myNSArrayM
+@implementation FFM___myNSArrayM
 
 - (void)removeObjectAtIndex:(NSUInteger)index {
 	if (index < [self count]) {
@@ -374,13 +589,43 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 
+#ifdef SSB_MODE
+@interface FFM_UserNotificationCenter : NSObject
+@end
+
+@implementation FFM_UserNotificationCenter
+
+- (void)deliverNotification:(NSUserNotification *)notification {
+	NSUserNotification *modifiedNotification = [notification copy];
+	
+	// We don't need to know what website this notification comes from.
+	[modifiedNotification setValue:@"" forKey:@"subtitle"];
+	
+	// Remove the ... button from notifications, which would let the user break into Firefox's standard settings menu.
+	[modifiedNotification setValue:@(NO) forKey:@"hasActionButton"];
+	
+	// Remove default sound. If sound is desired, websites will play their own.
+	[modifiedNotification setValue:nil forKey:@"soundName"];
+	
+	ZKOrig(void, modifiedNotification);
+}
+
+@end
+#endif
+
+
+
+
 @implementation NSObject (main)
 
 + (void)load {
-	ZKSwizzle(myNSApplication_, NSApplication);
-	ZKSwizzle(myNSWindow, NSWindow);
-	ZKSwizzle(myNSMenu, NSMenu);
-	ZKSwizzle(__myNSArrayM, __NSArrayM);
+	ZKSwizzle(FFM_NSApplication, NSApplication);
+	ZKSwizzle(FFM_NSWindow, NSWindow);
+	ZKSwizzle(FFM_NSMenu, NSMenu);
+	ZKSwizzle(FFM___myNSArrayM, __NSArrayM);
+#ifdef SSB_MODE
+	ZKSwizzle(FFM_UserNotificationCenter, _NSConcreteUserNotificationCenter);
+#endif
 }
 
 @end
