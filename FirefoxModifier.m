@@ -197,6 +197,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 - (void)fixupMenuItems {
 	if ([[self title] isEqualToString:NSLocalizedString(@"File", nil)]) {
+		[self renameItemWithTitle:@"Save Page As…" to:@"Save As…"];
 		[self removeItemWithTitle:@"Work Offline"];
 		[self removeItemWithTitle:@"Import From Another Browser…"];
 		[self removeItemWithTitle:@"Restart (Developer)"];
@@ -219,6 +220,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self addItemWithTitle:@"Reload Page" atIndex:5 action:@selector(reloadPage:) keyEquivalent:@"r"];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"History", nil)]) {
+		[self removeItemWithTitle:@"Synced Tabs"];
+		[self removeItemWithTitle:@"Hidden Tabs"];
+		
 		[self addItemWithTitle:@"Back" atIndex:0 action:@selector(back:) keyEquivalent:@"["];
 		[self addItemWithTitle:@"Forward" atIndex:1 action:@selector(forward:) keyEquivalent:@"]"];
 		[self addSeperatorAtIndex:2];
@@ -242,9 +246,12 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Delete"];
 		[self removeItemWithTitle:@"Select All"];
 		[self removeItemWithTitle:@"Manage Passwords"];
+		[self removeItemWithTitle:@"Send Page to Device"];
+		[self removeItemWithPrefix:@"Translate Selection to"];
+		[self removeItemWithTitle:@"View Selection Source"];
+		[self removeItemWithTitle:@"Inspect Accessibility Properties"];
+		[self removeItemWithTitle:@"Save Page As…"];
 	}
-	//Multiple Locations
-	[self renameItemWithTitle:@"Save Page As…" to:@"Save As…"];
 	
 	[self removeLeadingAndTrailingSeperators];
 	[self update];
