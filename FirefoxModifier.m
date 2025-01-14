@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #include <Carbon/Carbon.h>
+#include <sys/time.h>
 #import "ZKSwizzle.h"
 
 void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
@@ -164,6 +165,14 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	return NO;
 }
 
+- (void)setWindowsMenu:(NSMenu *)menu {
+	ZKOrig(void, menu);
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.001 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		[[NSApp mainMenu] initializeSubmenus];
+	});
+}
+
+
 // Fix: Downloaded files sometimes won't appear in stacks in the Dock.
 - (void)finishLaunching {
 	ZKOrig(void);
@@ -174,14 +183,58 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 }
 
 - (void)downloadFileFinished:(NSNotification *)notification {
-	// Coordinate a write operation on the file but don't make any actual changes.
-	NSFileCoordinator *fileCoordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
-	[fileCoordinator coordinateWritingItemAtURL:[NSURL fileURLWithPath:notification.object]
-					options:0
-					error:nil
-					byAccessor:^(NSURL *newURL) {}
+	NSString *originalFileName = [notification.object lastPathComponent];
+	NSString *hiddenFilePath = [
+		[notification.object stringByDeletingLastPathComponent] stringByAppendingPathComponent:
+		[NSString stringWithFormat:@".%@-%u", originalFileName, arc4random() % 10000]
 	];
+	
+	// Multiple instances of Firefox may all have this code attached to `com.apple.DownloadFileFinished`.
+	// We need to handle locking so they don't interfere with each other.
+	int fd = open([notification.object UTF8String], O_RDONLY);
+	if (fd == -1) {
+		return;
+	}
+	if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
+		// If we can't get a lock, it's likely (hopefully) because another Firefox process is already fixing this file.
+		// Stop and let that other process take care of it.
+		close(fd);
+		return;
+	}
+
+	// Rename the original file to a hidden file
+	if (rename([notification.object UTF8String], [hiddenFilePath UTF8String]) == -1) {
+		flock(fd, LOCK_UN);
+		close(fd);
+		return;
+	}
+
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		// Create a hard link from the hidden file to the original name
+		if (link([hiddenFilePath UTF8String], [notification.object UTF8String]) == -1) {
+			rename([hiddenFilePath UTF8String], [notification.object UTF8String]);
+			flock(fd, LOCK_UN);
+			close(fd);
+			return;
+		}
+
+		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+			// Remove the hidden file
+			unlink([hiddenFilePath UTF8String]);
+
+			// Change modification and access time of the final renamed file.
+			// If we don't do this, the file will appear in the Dock but may not appear in Finder!
+			struct timeval times[2];
+			gettimeofday(&times[0], NULL); // Current time for access
+			gettimeofday(&times[1], NULL); // Current time for modification
+			utimes([notification.object UTF8String], times);
+
+			flock(fd, LOCK_UN);
+			close(fd);
+		});
+	}); 
 }
+
 
 #ifdef SSB_MODE
 - (void)_checkForTerminateAfterLastWindowClosed:(id)arg1 saveWindows:(BOOL)arg2 {
@@ -222,11 +275,6 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	}
 }
 #endif
-
-- (BOOL)makeFirstResponder:(NSResponder *)responder { 
-	[[NSApp mainMenu] initializeSubmenus];
-	return ZKOrig(BOOL, responder);
-}
 
 @end
 
