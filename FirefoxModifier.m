@@ -190,20 +190,19 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[notification.object stringByDeletingLastPathComponent] stringByAppendingPathComponent:
 		[NSString stringWithFormat:@".%@-%u", originalFileName, arc4random() % 10000]
 	];
-	
-	// Multiple instances of Firefox may all have this code attached to `com.apple.DownloadFileFinished`.
-	// We need to handle locking so they don't interfere with each other.
-	int fd = open([notification.object UTF8String], O_RDONLY);
-	if (fd == -1) {
-		return;
-	}
-	if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
-		// If we can't get a lock, it's likely (hopefully) because another Firefox process is already fixing this file.
-		// Stop and let that other process take care of it.
-		close(fd);
-		return;
-	}
 	DISPATCH_AFTER(0.1, ^{
+		// Multiple instances of Firefox may all have this code attached to `com.apple.DownloadFileFinished`.
+		// We need to handle locking so they don't interfere with each other.
+		int fd = open([notification.object UTF8String], O_RDONLY);
+		if (fd == -1) {
+			return;
+		}
+		if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
+			// If we can't get a lock, it's hopefully because another Firefox process is already fixing this file.
+			// Stop and let that other process take care of it.
+			close(fd);
+			return;
+		}
 		// Rename the original file to a hidden file
 		if (rename([notification.object UTF8String], [hiddenFilePath UTF8String]) == -1) {
 			flock(fd, LOCK_UN);
