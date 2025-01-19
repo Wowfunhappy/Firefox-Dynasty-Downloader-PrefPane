@@ -201,36 +201,35 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		close(fd);
 		return;
 	}
-
-	// Rename the original file to a hidden file
-	if (rename([notification.object UTF8String], [hiddenFilePath UTF8String]) == -1) {
-		flock(fd, LOCK_UN);
-		close(fd);
-		return;
-	}
-
 	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-		// Create a hard link from the hidden file to the original name
-		if (link([hiddenFilePath UTF8String], [notification.object UTF8String]) == -1) {
-			rename([hiddenFilePath UTF8String], [notification.object UTF8String]);
+		// Rename the original file to a hidden file
+		if (rename([notification.object UTF8String], [hiddenFilePath UTF8String]) == -1) {
 			flock(fd, LOCK_UN);
 			close(fd);
 			return;
 		}
-
 		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-			// Remove the hidden file
-			unlink([hiddenFilePath UTF8String]);
+			// Create a hard link from the hidden file to the original name
+			if (link([hiddenFilePath UTF8String], [notification.object UTF8String]) == -1) {
+				rename([hiddenFilePath UTF8String], [notification.object UTF8String]);
+				flock(fd, LOCK_UN);
+				close(fd);
+				return;
+			}
+			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+				// Remove the hidden file
+				unlink([hiddenFilePath UTF8String]);
 
-			// Change modification and access time of the final renamed file.
-			// If we don't do this, the file will appear in the Dock but may not appear in Finder!
-			struct timeval times[2];
-			gettimeofday(&times[0], NULL); // Current time for access
-			gettimeofday(&times[1], NULL); // Current time for modification
-			utimes([notification.object UTF8String], times);
+				// Change modification and access time of the final renamed file.
+				// If we don't do this, the file will appear in the Dock but may not appear in Finder!
+				struct timeval times[2];
+				gettimeofday(&times[0], NULL); // Current time for access
+				gettimeofday(&times[1], NULL); // Current time for modification
+				utimes([notification.object UTF8String], times);
 
-			flock(fd, LOCK_UN);
-			close(fd);
+				flock(fd, LOCK_UN);
+				close(fd);
+			});
 		});
 	}); 
 }
