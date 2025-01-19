@@ -4,6 +4,8 @@
 #include <sys/time.h>
 #import "ZKSwizzle.h"
 
+#define DISPATCH_AFTER(delayInSeconds, block) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), block)
+
 void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	// Conveniently, this will NOT retrigger our swizzled sendEvent method!
 	// So if we send, for example, ⌘R, that will always make Firefox reload the page,
@@ -32,7 +34,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	CFRelease(keydown);
 	CFRelease(keyup);
 	
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+	DISPATCH_AFTER(0.1, ^{
 		isSendingKeyboardEvent = NO;
 	});
 }
@@ -167,7 +169,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 - (void)setWindowsMenu:(NSMenu *)menu {
 	ZKOrig(void, menu);
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.001 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+	DISPATCH_AFTER(0.001, ^{
 		[[NSApp mainMenu] initializeSubmenus];
 	});
 }
@@ -201,14 +203,14 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		close(fd);
 		return;
 	}
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+	DISPATCH_AFTER(0.1, ^{
 		// Rename the original file to a hidden file
 		if (rename([notification.object UTF8String], [hiddenFilePath UTF8String]) == -1) {
 			flock(fd, LOCK_UN);
 			close(fd);
 			return;
 		}
-		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		DISPATCH_AFTER(0.1, ^{
 			// Create a hard link from the hidden file to the original name
 			if (link([hiddenFilePath UTF8String], [notification.object UTF8String]) == -1) {
 				rename([hiddenFilePath UTF8String], [notification.object UTF8String]);
@@ -216,7 +218,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 				close(fd);
 				return;
 			}
-			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+			DISPATCH_AFTER(0.1, ^{
 				// Remove the hidden file
 				unlink([hiddenFilePath UTF8String]);
 
@@ -590,9 +592,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	[pasteboard clearContents];
 	
 	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_L);
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+	DISPATCH_AFTER(0.2, ^{
 		sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_C);
-		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		DISPATCH_AFTER(0.2, ^{
 			NSString *url = [pasteboard stringForType:NSPasteboardTypeString];
 			
 			// Restore the saved pasteboard contents
