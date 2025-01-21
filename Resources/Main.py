@@ -156,7 +156,7 @@ shutil.copy2(get_path_to_me() + "/firefox.icns", temp_directory + "/Resources/")
 shutil.copy2(get_path_to_me() + "/document.icns", temp_directory + "/Resources/")
 
 # Copy FirefoxModifier.dylib and inject into binary
-shutil.copy2(get_path_to_me() + "/FirefoxModifier/FirefoxModifier.dylib", temp_directory + "/Frameworks/")
+shutil.copy2(get_path_to_me() + "/FirefoxModifier.dylib", temp_directory + "/Frameworks/")
 run_shell(get_path_to_me(escape_chars=True) + "/insert_dylib --inplace --strip-codesig --all-yes @executable_path/../Frameworks/FirefoxModifier.dylib " + temp_directory + "/MacOS/firefox")
 
 # Codesign everything
