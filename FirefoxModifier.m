@@ -91,22 +91,28 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 			@"$@a",		// add-ons and themes
 			@"@s",		// save page as
 			@"@,",		// settings
-			@"~@i",		// web developer tools
-			@"$~@i",	// browser toolbox
 			@"$@j",		// browser console
 			@"~@m",		// responsive design mode
 			@"@u",		// page source
-			// Switching Tabs
-			@"@1",
-			@"@2",
-			@"@3",
-			@"@4",
-			@"@5",
-			@"@6",
-			@"@7",
-			@"@8",
-			@"@9",
+			@"@i",		// page info
+			@"@y",		// history
+			@"$@h",		// history sidebar
+			@"@o",		// open file
+			@"@b",		// bookmarks sidebar
+			@"$@o",		// manage bookmarks
+			@"@l",		// focus address bar
+			@"@k",		// focus search bar
 		];
+		NSNumber *infoPlistSaysAllowDeveloperTools = [
+			[NSBundle mainBundle] objectForInfoDictionaryKey:@"AllowDeveloperTools"
+		];
+		if (!infoPlistSaysAllowDeveloperTools || !infoPlistSaysAllowDeveloperTools.boolValue) {
+			shortcutBlacklist = [shortcutBlacklist arrayByAddingObjectsFromArray:@[
+				@"~@i",		// web developer tools
+				@"$~@i",	// browser toolbox
+			]];
+		}
+
 		for (NSString *shortcut in shortcutBlacklist) {
 			if ([self event:event matchesShortcut:shortcut]) {
 				return;
@@ -238,9 +244,14 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 #ifdef SSB_MODE
 - (void)_checkForTerminateAfterLastWindowClosed:(id)arg1 saveWindows:(BOOL)arg2 {
-	// We'd like to make applicationShouldTerminateAfterLastWindowClosed return YES, but that causes Firefox to freeze.
-	// So we'll do this instead.
-	[self handleQuitScriptCommand:arg1];
+	NSNumber *infoPlistSaysTerminateAfterLastWindowClosed = [
+		[NSBundle mainBundle] objectForInfoDictionaryKey:@"TerminateAfterLastWindowClosed"
+	];
+	if ([infoPlistSaysTerminateAfterLastWindowClosed boolValue]) {
+		// Making applicationShouldTerminateAfterLastWindowClosed return YES causes Firefox to freeze,
+		// so we do it this way instead.
+		[self handleQuitScriptCommand:arg1];
+	}
 }
 
 - (struct __CFArray *)_createDockMenu:(BOOL)arg1 { 
@@ -260,13 +271,13 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 
+#ifdef SSB_MODE
 @interface FFM_NSWindow : NSWindow
 @end
 
 
 @implementation FFM_NSWindow
 
-#ifdef SSB_MODE
 - (void)setTitle:(NSString*) title {
 	if ([title isEqualToString:@"Mozilla Firefox"]) {
 		ZKOrig(void, [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]);
@@ -274,9 +285,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		ZKOrig(void, title);
 	}
 }
-#endif
 
 @end
+#endif
 
 
 
@@ -324,6 +335,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {     
 		[self renameItemWithTitle:@"Find in Page…" to:@"Find…"];
 		[self renameItemWithTitle:@"Find Again" to:@"Find Next"];
+		[self addItemWithTitle:@"Find Previous" atIndex:12 action:@selector(findPrev:) keyEquivalent:@"$@g"];
 		
 		// `Select All` will sometimes be disabled for no reason. Always enable it.
 		NSMenuItem *selectAllItem = [self itemWithTitle:NSLocalizedString(@"Select All", nil)];
@@ -350,8 +362,10 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Tools", nil)]) {
 		[self removeItemWithTitle:@"Add-ons and Themes"];
-		[self removeItemWithTitle:@"Sign in"];
 		[self renameItemWithTitle:@"Browser Tools" to:@"Developer"];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Share", nil)]) {
+		[self removeItemWithTitle:@"More…"];
 	}
 	else {
 		// Context menu
@@ -387,12 +401,11 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Work Offline"];
 		[self removeItemWithTitle:@"Import From Another Browser…"];
 		[self removeItemWithTitle:@"Restart (Developer)"];
-		
-		[self addItemWithTitle:@"Open In Browser…" atIndex:4 action:@selector(openInBrowser:) keyEquivalent:@""];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {     
 		[self renameItemWithTitle:@"Find in Page…" to:@"Find…"];
 		[self renameItemWithTitle:@"Find Again" to:@"Find Next"];
+		[self addItemWithTitle:@"Find Previous" atIndex:12 action:@selector(findPrev:) keyEquivalent:@"$@g"];
 		
 		// `Select All` will sometimes be disabled for no reason. Always enable it.
 		NSMenuItem *selectAllItem = [self itemWithTitle:NSLocalizedString(@"Select All", nil)];
@@ -423,15 +436,13 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[[NSApp mainMenu] removeItemWithTitle:@"Tools"];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Help", nil)]) {
-		//Delete the existing help menu and create a new one.
-		[[NSApp mainMenu] removeItemWithTitle:NSLocalizedString(@"Help", nil)];
-		NSMenuItem *helpMenuItem = [[NSMenuItem alloc] initWithTitle:NSLocalizedString(@"Help", nil)
-														action:nil
-														keyEquivalent:@""];
-		NSMenu *helpMenu = [[NSMenu alloc] initWithTitle:NSLocalizedString(@"Help", nil)];
-		[helpMenuItem setSubmenu:helpMenu];
-		[[NSApp mainMenu] addItem:helpMenuItem];
-		[NSApp setHelpMenu:helpMenu];
+		[self removeItemWithTitle:@"Get Help"];
+		[self removeItemWithTitle:@"Report Broken Site"];
+		[self removeItemWithTitle:@"Share Ideas and Feedback…"];
+		[self removeItemWithTitle:@"Troubleshoot Mode…"];
+		[self removeItemWithTitle:@"More Troubleshooting Information"];
+		[self removeItemWithTitle:@"Report Deceptive Site…"];
+		[self removeItemWithTitle:@"Switching to a New Device"];
 	}
 	else {
 		//Context menu(s)
@@ -472,6 +483,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Redo"];
 		[self removeItemWithTitle:@"Delete"];
 		[self removeItemWithTitle:@"Manage Passwords"];
+		
+		[self removeItemWithTitle:@"Save Page As…"];
+		[self removeItemWithTitle:@"This Frame"];
 	}
 #endif
 
@@ -485,7 +499,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 				keyEquivalent:(NSString *)keyEquivalent
 {   
 	NSInteger menuCount = [self numberOfItems];
-	if (index < 0 && index > menuCount) {
+	if (index < 0 || index > menuCount) {
 		index = menuCount;
 	}
 	
@@ -495,12 +509,39 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		return;
 	}
 	
+	NSUInteger keyModifiers = 0;
+	if ([keyEquivalent length] > 1) {
+		for (NSUInteger i = 0; i < [keyEquivalent length]; i++) {
+			switch ([keyEquivalent characterAtIndex:i]) {
+				case '$':
+					keyModifiers |= NSShiftKeyMask;
+					break;
+				case '@':
+					keyModifiers |= NSCommandKeyMask;
+					break;
+				case '^':
+					keyModifiers |= NSControlKeyMask;
+					break;
+				case '~':
+					keyModifiers |= NSAlternateKeyMask;
+					break;
+				default:
+					// Assume the last non-modifier character is the key
+					keyEquivalent = [keyEquivalent substringWithRange:NSMakeRange(i, 1)];
+					break;
+			}
+		}
+	}
+	
 	NSMenuItem *newMenuItem = [
 		[NSMenuItem alloc]
 		initWithTitle:NSLocalizedString(title, nil)
 		action:action
 		keyEquivalent:keyEquivalent
 	];
+	if (keyModifiers != 0) {
+		[newMenuItem setKeyEquivalentModifierMask:keyModifiers];
+	}
 	[newMenuItem setTarget:self];
 	[self insertItem:newMenuItem atIndex:index];
 }
@@ -572,6 +613,10 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 - (void)forward:(id)sender {
 	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_RightBracket);
+}
+
+- (void)findPrev:(id)sender {
+	sendKeyboardEvent(kCGEventFlagMaskCommand | kCGEventFlagMaskShift, kVK_ANSI_G);
 }
 
 #ifdef SSB_MODE
@@ -668,10 +713,10 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 + (void)load {
 	ZKSwizzle(FFM_NSApplication, NSApplication);
-	ZKSwizzle(FFM_NSWindow, NSWindow);
 	ZKSwizzle(FFM_NSMenu, NSMenu);
 	ZKSwizzle(FFM___myNSArrayM, __NSArrayM);
 #ifdef SSB_MODE
+	ZKSwizzle(FFM_NSWindow, NSWindow);
 	ZKSwizzle(FFM_UserNotificationCenter, _NSConcreteUserNotificationCenter);
 #endif
 }
