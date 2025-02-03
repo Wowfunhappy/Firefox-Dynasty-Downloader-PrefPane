@@ -7,30 +7,25 @@
 #define DISPATCH_AFTER(delayInSeconds, block) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), block)
 
 void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
-	// Conveniently, this will NOT retrigger our swizzled sendEvent method!
-	// So if we send, for example, ⌘R, that will always make Firefox reload the page,
-	// even if the user set `Reload` to a different keyboard shortcut in System Preferences.
-		
-	// Make sure the event we send does not re-trigger the same menu item and cause an infinite loop.
 	static BOOL isSendingKeyboardEvent = NO;
 	if (isSendingKeyboardEvent) {
 		return;
 	}
 	isSendingKeyboardEvent = YES;
 
-	// Create key down and key up events
 	CGEventRef keydown = CGEventCreateKeyboardEvent(NULL, keyCode, true);
 	CGEventRef keyup = CGEventCreateKeyboardEvent(NULL, keyCode, false);
-
-	// Set the modifier flags
+	
+	// Set a custom field to mark these events as synthetic
+	CGEventSetIntegerValueField(keydown, kCGEventSourceUserData, 0xFFFFFFFF);
+	CGEventSetIntegerValueField(keyup, kCGEventSourceUserData, 0xFFFFFFFF);
+	
 	CGEventSetFlags(keydown, flags);
 	CGEventSetFlags(keyup, flags);
 	
-	// Post the events
 	CGEventPost(kCGAnnotatedSessionEventTap, keydown);
 	CGEventPost(kCGAnnotatedSessionEventTap, keyup);
-
-	// Release the events
+	
 	CFRelease(keydown);
 	CFRelease(keyup);
 	
@@ -49,9 +44,6 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 @interface FFM_NSApplication : NSApplication
-#ifdef SSB_MODE
-- (void)handleQuitScriptCommand:(id)arg1;
-#endif
 @end
 
 
@@ -66,7 +58,12 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[event type] == NSKeyDown &&
 		[event modifierFlags] & (NSCommandKeyMask | NSAlternateKeyMask | NSControlKeyMask)
 		//We don't check NSShiftKeyMask because shortcuts aren't allowed to use Shift as the only modifier key.
-	) { 
+	) {
+		if ([event CGEvent] && CGEventGetIntegerValueField([event CGEvent], kCGEventSourceUserData) == 0xFFFFFFFF) {
+			// This is our synthetic event from sendKeyboardEvent
+			return ZKOrig(void, event);
+		}
+		
 		// Query user-defined key equivalents
 		NSDictionary *userKeyEquivalents = [[NSUserDefaults standardUserDefaults] objectForKey:@"NSUserKeyEquivalents"];
 
@@ -87,6 +84,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 			@"@t",		// new tab
 			@"$@p",		// new private window
 			@"@d",		// bookmark current tab
+			@"$@d",		// bookmarks all tabs
 			@"@j",		// downloads
 			@"$@a",		// add-ons and themes
 			@"@s",		// save page as
@@ -110,6 +108,15 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 			shortcutBlacklist = [shortcutBlacklist arrayByAddingObjectsFromArray:@[
 				@"~@i",		// web developer tools
 				@"$~@i",	// browser toolbox
+			]];
+		}
+		
+		NSNumber *infoPlistSaysPrintMenuItemEnabled = [
+			[NSBundle mainBundle] objectForInfoDictionaryKey:@"EnablePrintMenuItem"
+		];
+		if (!infoPlistSaysPrintMenuItemEnabled || !infoPlistSaysPrintMenuItemEnabled.boolValue) {
+			shortcutBlacklist = [shortcutBlacklist arrayByAddingObjectsFromArray:@[
+				@"@p",		// print
 			]];
 		}
 
@@ -254,6 +261,10 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	}
 }
 
+- (void)handleQuitScriptCommand:(id)arg1 {
+	ZKOrig(void, arg1);
+}
+
 - (struct __CFArray *)_createDockMenu:(BOOL)arg1 { 
 	NSMutableArray *menuArray = [(__bridge NSArray *)ZKOrig(struct __CFArray *, arg1) mutableCopy];
 	for (NSDictionary *menuItem in [menuArray reverseObjectEnumerator]) {
@@ -332,7 +343,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self addItemWithTitle:@"Open Location…" atIndex:5 action:@selector(openLocation:) keyEquivalent:@"l"];
 		[self addSeperatorAtIndex:6];
 	}
-	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {     
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {
 		[self renameItemWithTitle:@"Find in Page…" to:@"Find…"];
 		[self renameItemWithTitle:@"Find Again" to:@"Find Next"];
 		[self addItemWithTitle:@"Find Previous" atIndex:12 action:@selector(findPrev:) keyEquivalent:@"$@g"];
@@ -364,8 +375,24 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Add-ons and Themes"];
 		[self renameItemWithTitle:@"Browser Tools" to:@"Developer"];
 	}
-	else if ([[self title] isEqualToString:NSLocalizedString(@"Share", nil)]) {
-		[self removeItemWithTitle:@"More…"];
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Window", nil)]) {
+		//Find position of last seperator
+		int index = [self numberOfItems] - 1;
+		while (index > 0) {
+			if ([[self itemAtIndex:index] isSeparatorItem]) {
+				break;
+			}
+			index--;
+		}
+		[self addItemWithTitle:@"Bring All to Front" atIndex:index action:@selector(bringAllToFront:) keyEquivalent:@""];
+		[self addSeperatorAtIndex:index];
+		[self addItemWithTitle:@"Cycle Through Windows" atIndex:index action:@selector(cycleWindows:) keyEquivalent:@"`"];
+		
+		NSWindow *currentWindow = [NSApp mainWindow] ?: [NSApp keyWindow];
+		BOOL isCurrentWindowFullScreen = currentWindow && (currentWindow.styleMask & NSFullScreenWindowMask) == NSFullScreenWindowMask;
+		
+		NSMenuItem *cycleWindowsItem = [self itemWithTitle:@"Cycle Through Windows"];
+		[cycleWindowsItem setEnabled:!isCurrentWindowFullScreen];
 	}
 	else {
 		// Context menu
@@ -401,15 +428,41 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Work Offline"];
 		[self removeItemWithTitle:@"Import From Another Browser…"];
 		[self removeItemWithTitle:@"Restart (Developer)"];
-	}
-	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {     
-		[self renameItemWithTitle:@"Find in Page…" to:@"Find…"];
-		[self renameItemWithTitle:@"Find Again" to:@"Find Next"];
-		[self addItemWithTitle:@"Find Previous" atIndex:12 action:@selector(findPrev:) keyEquivalent:@"$@g"];
 		
+		NSNumber *infoPlistSaysShareMenuEnabled = [
+			[NSBundle mainBundle] objectForInfoDictionaryKey:@"EnableShareMenuItem"
+		];
+		if (!infoPlistSaysShareMenuEnabled || !infoPlistSaysShareMenuEnabled.boolValue) {
+			[self removeItemWithTitle:@"Share"];
+		}
+		
+		NSNumber *infoPlistSaysPrintMenuItemEnabled = [
+			[NSBundle mainBundle] objectForInfoDictionaryKey:@"EnablePrintMenuItem"
+		];
+		if (!infoPlistSaysPrintMenuItemEnabled || !infoPlistSaysPrintMenuItemEnabled.boolValue) {
+			[self removeItemWithTitle:@"Print…"];
+		}
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {
 		// `Select All` will sometimes be disabled for no reason. Always enable it.
 		NSMenuItem *selectAllItem = [self itemWithTitle:NSLocalizedString(@"Select All", nil)];
 		[selectAllItem setEnabled:YES];
+		
+		// Some web apps will override the default find keyboard shortcuts with their own UI.
+		// We want the menu items themselves to bring up that same UI.
+		[self removeItemWithTitle:@"Find in Page…"];
+		[self removeItemWithTitle:@"Find Again"];
+		[self addItemWithTitle:@"Find…" atIndex:10 action:@selector(find:) keyEquivalent:@"f"];
+		[self addItemWithTitle:@"Find Next" atIndex:11 action:@selector(findNext:) keyEquivalent:@"g"];
+		[self addItemWithTitle:@"Find Previous" atIndex:12 action:@selector(findPrev:) keyEquivalent:@"$@g"];
+
+		// Similar to above, some web apps override the default undo/redo keyboard shortcuts with their own handlers.
+		// We want the menu items themselves to use the same handlers.
+		[self removeItemWithTitle:@"Undo"];
+		[self removeItemWithTitle:@"Redo"];
+		[self addItemWithTitle:@"Undo" atIndex:0 action:@selector(undo:) keyEquivalent:@"z"];
+		[self addItemWithTitle:@"Redo" atIndex:1 action:@selector(redo:) keyEquivalent:@"$@z"];
+
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"View", nil)]) {
 		[self removeItemWithTitle:@"Toolbars"];
@@ -434,6 +487,25 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Tools", nil)]) {
 		[[NSApp mainMenu] removeItemWithTitle:@"Tools"];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Window", nil)]) {
+		//Find position of last seperator
+		int index = [self numberOfItems] - 1;
+		while (index > 0) {
+			if ([[self itemAtIndex:index] isSeparatorItem]) {
+				break;
+			}
+			index--;
+		}
+		[self addItemWithTitle:@"Bring All to Front" atIndex:index action:@selector(bringAllToFront:) keyEquivalent:@""];
+		[self addSeperatorAtIndex:index];
+		[self addItemWithTitle:@"Cycle Through Windows" atIndex:index action:@selector(cycleWindows:) keyEquivalent:@"`"];
+		
+		NSWindow *currentWindow = [NSApp mainWindow] ?: [NSApp keyWindow];
+		BOOL isCurrentWindowFullScreen = currentWindow && (currentWindow.styleMask & NSFullScreenWindowMask) == NSFullScreenWindowMask;
+		
+		NSMenuItem *cycleWindowsItem = [self itemWithTitle:@"Cycle Through Windows"];
+		[cycleWindowsItem setEnabled:!isCurrentWindowFullScreen];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Help", nil)]) {
 		[self removeItemWithTitle:@"Get Help"];
@@ -503,9 +575,8 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		index = menuCount;
 	}
 	
-	NSMenuItem *existingItem = [self itemAtIndex:index];
-	if ([existingItem.title isEqualToString:NSLocalizedString(title, nil)]) {
-		//Menu item already exists at this index.
+	if ([self indexOfItemWithTitle:NSLocalizedString(title, nil)] != -1) {
+		//Menu item already exists
 		return;
 	}
 	
@@ -615,50 +686,35 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_RightBracket);
 }
 
+- (void)find:(id)sender {
+	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_F);
+}
+
+- (void)findNext:(id)sender {
+	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_G);
+}
+
 - (void)findPrev:(id)sender {
 	sendKeyboardEvent(kCGEventFlagMaskCommand | kCGEventFlagMaskShift, kVK_ANSI_G);
 }
 
-#ifdef SSB_MODE
-- (void)openInBrowser:(id)sender {
-	NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
-	
-	// Save the current contents of the pasteboard
-	NSArray *types = [pasteboard types];
-	NSMutableDictionary *savedPasteboardItems = [NSMutableDictionary dictionary];
-	for (NSString *type in types) {
-		NSData *data = [pasteboard dataForType:type];
-		if (data) {
-			[savedPasteboardItems setObject:data forKey:type];
-		}
-	}
-	
-	[pasteboard clearContents];
-	
-	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_L);
-	DISPATCH_AFTER(0.2, ^{
-		sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_C);
-		DISPATCH_AFTER(0.2, ^{
-			NSString *url = [pasteboard stringForType:NSPasteboardTypeString];
-			
-			// Restore the saved pasteboard contents
-			[pasteboard clearContents];
-			if (savedPasteboardItems.count > 0) {
-				[pasteboard declareTypes:[savedPasteboardItems allKeys] owner:nil];
-				for (NSString *type in savedPasteboardItems) {
-					NSData *data = savedPasteboardItems[type];
-					[pasteboard setData:data forType:type];
-				}
-			}
-			
-			NSTask *task = [[NSTask alloc] init];
-			task.launchPath = @"/usr/bin/open";
-			task.arguments = @[url];
-			[task launch];
-		});
-	});
+- (void)undo:(id)sender {
+	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_Z);
 }
-#endif
+
+- (void)redo:(id)sender {
+	sendKeyboardEvent(kCGEventFlagMaskCommand | kCGEventFlagMaskShift, kVK_ANSI_Z);
+}
+
+- (void)bringAllToFront:(id)sender {
+	[[NSRunningApplication currentApplication] activateWithOptions:(
+		NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps
+	)];
+}
+
+- (void)cycleWindows:(id)sender {
+	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_Grave);
+}
 
 @end
 
