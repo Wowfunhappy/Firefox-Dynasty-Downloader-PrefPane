@@ -1,3 +1,5 @@
+// clang $filename -dynamiclib -framework AppKit -framework Foundation ZKSwizzle.m -o /Applications/Firefox.app/Contents/Frameworks/FirefoxModifier.dylib
+
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #include <Carbon/Carbon.h>
@@ -429,6 +431,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Import From Another Browser…"];
 		[self removeItemWithTitle:@"Restart (Developer)"];
 		
+		[[self itemWithTitle:NSLocalizedString(@"Close Window", nil)] setKeyEquivalent:@"w"];
+		[[self itemWithTitle:NSLocalizedString(@"Close Window", nil)] setKeyEquivalentModifierMask:NSCommandKeyMask];
+
 		NSNumber *infoPlistSaysShareMenuEnabled = [
 			[NSBundle mainBundle] objectForInfoDictionaryKey:@"EnableShareMenuItem"
 		];
@@ -561,7 +566,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	}
 #endif
 
-	[self removeLeadingAndTrailingSeperators];
+	[self cleanUpSeperators];
 	[self update];
 }
 
@@ -661,12 +666,24 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	[item setTitle:newTitle];
 }
 
-- (void)removeLeadingAndTrailingSeperators {
+- (void)cleanUpSeperators {
+	// Remove leading separators
 	while ([self numberOfItems] > 0 && [[self itemAtIndex:0] isSeparatorItem]) {
 		 [self removeItemAtIndex:0];
 	}
+	// Remove trailing separators
 	while ([self numberOfItems] > 0 && [[self itemAtIndex:[self numberOfItems]-1] isSeparatorItem]) {
 		[self removeItemAtIndex:[self numberOfItems]-1];
+	}
+	// Remove consecutive separators
+	NSInteger i = 0;
+	while (i < [self numberOfItems] - 1) {
+		if ([[self itemAtIndex:i] isSeparatorItem] && [[self itemAtIndex:i+1] isSeparatorItem]) {
+			// Remove the second separator and don't increment i
+			[self removeItemAtIndex:i+1];
+		} else {
+			i++;
+		}
 	}
 }
 
