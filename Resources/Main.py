@@ -71,14 +71,15 @@ def check_github_connection():
 	url = "https://github.com"
 	
 	# All uses of curl in this code include the -k flag, disabling SSL certificate verification.
-	# This isn't great for downloading a sensitive app like a web browser. However, we need to work on old systems!
+	# This isn't great for downloading a sensitive app like a web browser.
+	# However, because we need to work on old systems, I don't know what else to do!
 	
 	# To work around SSL incompatibilities, we are shipping our own copy of curl built against OpenSSL.
 	# In order to verify certificates, we would need to also ship our own certificate store.
 	# However, this would break for users who have actually done the right thing and installed an SSL mitm proxy,
 	# which in the general case is the best way to make SSL work on legacy OS X.
 	
-	# Note that if a proxy is installed, the proxy should still perform certificate verification even if curl does not.
+	# Note that if a proxy is installed, the proxy will hopefully perform certificate verification even if curl doesn't.
 	
 	command = "{}/curl -Isk {} | head -n 1".format(get_path_to_me(escape_chars=True), url)
 	response = run_shell(command)
@@ -137,7 +138,7 @@ release_strings = []
 for release in releases:
 	release_strings.append(release["tag_name"])
 
-selected_build_str = display_list(release_strings, "Select a Build", "Choose a version of Firefox Dynasty to install.")
+selected_build_str = display_list(release_strings, "Firefox Downloader", "Choose a version of Firefox Dynasty to install.")
 
 #Find index of selected_build_str
 for release in releases:
