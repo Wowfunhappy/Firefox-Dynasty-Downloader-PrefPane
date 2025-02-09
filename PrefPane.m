@@ -25,17 +25,7 @@
 	NSTask *task = [[NSTask alloc] init];
 	[task setLaunchPath:@"/usr/bin/python"];
 	[task setArguments:@[scriptPath]];
-
-	NSPipe *pipe = [NSPipe pipe];
-	[task setStandardOutput:pipe];
-	[task setStandardError:pipe];
-
-	NSFileHandle *file = [pipe fileHandleForReading];
 	[task launch];
-	
-	NSData *data = [file readDataToEndOfFile];
-	NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-	NSLog(@"Firefox Dynasty Downloader: %@", output);
 }
 
 @end
