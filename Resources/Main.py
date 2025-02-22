@@ -41,6 +41,13 @@ def run_applescript(script):
 		print("Exception occurred while running Applescript:", str(e))
 		return None
 	
+def tell_system_events(script):
+	# Always use tell_system_events() instead of run_applescript() when displaying a GUI.
+	# Otherwise, the code will fail on OS X 10.8 and below with error "No user interaction allowed."
+	# On these operating systems, osascript cannot create GUIs by itself, it must tell System Events to do so.
+	run_applescript('tell application "System Events" to activate')
+	return run_applescript('tell application "System Events" to ' + script);
+	
 def display_list(list, title, prompt):
 	applescript_list_string = "{"
 	for index in range (len(list)):
@@ -50,7 +57,7 @@ def display_list(list, title, prompt):
 		else:
 			applescript_list_string = applescript_list_string + '"}'
 	
-	return run_applescript('choose from list ' + applescript_list_string + ' with title "' + title + '" with prompt "' + prompt + '"')
+	return tell_system_events('choose from list ' + applescript_list_string + ' with title "' + title + '" with prompt "' + prompt + '"')
 	
 def get_path_of_application(bundle_id):
 	return run_applescript('tell application "Finder" to get POSIX path of (application file id "' + bundle_id + '" as text)')
@@ -85,7 +92,7 @@ def check_github_connection():
 	response = run_shell(command)
 	if not response or "200" not in response:
 		print(response)
-		run_applescript('display alert "Could not connect to Github. Please make sure you are connected to the internet, or try again later." as critical')
+		tell_system_events('display alert "Could not connect to Github. Please make sure you are connected to the internet, or try again later." as critical')
 		exit()
 
 def get_github_releases(owner, repo, limit=30):
@@ -168,7 +175,7 @@ for root, dirs, files in os.walk(temp_directory):
 
 firefox_path = get_path_of_application("org.mozilla.firefox")
 if not firefox_path or not is_on_startup_disk(firefox_path) or is_in_trash(firefox_path):
-	firefox_path = run_applescript('get POSIX path of (choose folder with prompt "Where would you like to save the Firefox app?" default location "Applications") as text') + "/Firefox.app"
+	firefox_path = tell_system_events('get POSIX path of (choose folder with prompt "Where would you like to save the Firefox app?" default location "Applications") as text') + "/Firefox.app"
 
 shutil.rmtree(firefox_path + "/Contents", ignore_errors=True)
 shutil.copytree(temp_directory, firefox_path + "/Contents")
@@ -177,4 +184,4 @@ run_shell("chmod -R 755 " + firefox_path)
 run_shell("touch " + firefox_path)
 
 shutil.rmtree(temp_directory)
-run_applescript('display dialog "Your new copy of Firefox Dynasty has been installed." buttons {"OK"}')
+tell_system_events('display dialog "Your new copy of Firefox Dynasty has been installed." buttons {"OK"}')
