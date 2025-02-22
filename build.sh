@@ -24,7 +24,7 @@ cp -R Resources "${OUTPUT_DIR}/Contents/"
 cp -R libs "${OUTPUT_DIR}/Contents/"
 
 # Compile the Objective-C code
-clang -framework Cocoa -framework PreferencePanes -o "${OUTPUT_DIR}/Contents/MacOS/${TITLE}" -bundle "PrefPane.m"
+clang -framework Cocoa -framework PreferencePanes -o "${OUTPUT_DIR}/Contents/MacOS/${TITLE}" -arch x86_64 -arch i386 -bundle "PrefPane.m"
 
 chmod -R 755 "Firefox Dynasty Downloader.prefPane"
 echo "Build complete. You can find the PrefPane at ${OUTPUT_DIR}"
