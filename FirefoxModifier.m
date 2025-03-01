@@ -72,7 +72,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		if (userKeyEquivalents) {
 			// Check if the event matches any user-defined key equivalents
 			for (NSString *menuItemTitle in userKeyEquivalents) {
-				NSString *shortcut = userKeyEquivalents[menuItemTitle];
+				NSString *shortcut = [userKeyEquivalents objectForKey:menuItemTitle];;
 				if ([self event:event matchesShortcut:shortcut]) {
 					[self performKeyEquivalent:event];
 					[self performActionForItemWithTitle:menuItemTitle inMenu:[NSApp mainMenu]];
@@ -270,7 +270,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 - (struct __CFArray *)_createDockMenu:(BOOL)arg1 { 
 	NSMutableArray *menuArray = [(__bridge NSArray *)ZKOrig(struct __CFArray *, arg1) mutableCopy];
 	for (NSDictionary *menuItem in [menuArray reverseObjectEnumerator]) {
-		if ([menuItem[@"name"] isEqualToString:@"New Private Window"]) {
+		if ([[menuItem objectForKey:@"name"] isEqualToString:@"New Private Window"]) {
 			[menuArray removeObject:menuItem];
 			break;
 		}
@@ -316,8 +316,11 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	// 1. Every item can be triggerred by its key equivalents
 	// 2. Every item can appear in the search results of the `Help` search box.
 	
-	[[self delegate] menuWillOpen: self];
-	[[self delegate] menuDidClose: self];
+	if ([[self delegate] respondsToSelector:@selector(menuWillOpen:)]) {
+		//Guard is needed for Lion.
+		[[self delegate] menuWillOpen: self];
+		[[self delegate] menuDidClose: self];
+	}
 	
 	[self fixupMenuItems];
 	
