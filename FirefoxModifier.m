@@ -90,7 +90,6 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 			@"@j",		// downloads
 			@"$@a",		// add-ons and themes
 			@"@s",		// save page as
-			@"@,",		// settings
 			@"$@j",		// browser console
 			@"~@m",		// responsive design mode
 			@"@u",		// page source
@@ -285,6 +284,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 #ifdef SSB_MODE
+// Global variable to store the next custom title to use
+static NSString *pendingCustomTitle = nil;
+
 @interface FFM_NSWindow : NSWindow
 @end
 
@@ -295,7 +297,29 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	if ([title isEqualToString:@"Mozilla Firefox"]) {
 		ZKOrig(void, [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]);
 	} else {
-		ZKOrig(void, title);
+		// Check if we have a pending custom title to use
+		if (pendingCustomTitle) {
+			NSString *customTitle = pendingCustomTitle;
+			pendingCustomTitle = nil; // clear after use
+			
+			//Remove trailing elipses
+			if ([customTitle hasSuffix:@"…"]) {
+				customTitle = [customTitle substringToIndex:[customTitle length] - 1];
+			} else if ([customTitle hasSuffix:@"..."]) {
+				customTitle = [customTitle substringToIndex:[customTitle length] - 3];
+			}
+			
+			//Special case for Preferences
+			if ([customTitle isEqualToString:@"Preferences"]) {
+				customTitle = [NSString stringWithFormat:@"%@ Preferences", [
+					[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"
+				]];
+			}
+			
+			ZKOrig(void, customTitle);
+		} else {
+			ZKOrig(void, title);
+		}
 	}
 }
 
@@ -423,6 +447,37 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self renameItemWithTitle:@"Quit Firefox" to:[
 			NSString stringWithFormat:@"Quit %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]
 		]];
+		
+		// Add custom menu items from Info.plist
+		NSArray *appMenuItems = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"AppMenuItems"];
+		if (appMenuItems && [appMenuItems isKindOfClass:[NSArray class]]) {
+			NSInteger insertIndex = 0;			
+			if ([appMenuItems count] > 0) {				
+				// Add each custom menu item
+				for (NSDictionary *menuItem in appMenuItems) {
+					// Each dictionary has one key-value pair: title -> URL
+					for (NSString *title in menuItem) {
+						NSString *urlString = [menuItem objectForKey:title];
+						
+						NSString *keyEquiv = @"";
+						if ([title hasPrefix:@"Preferences"]) {
+							keyEquiv = @",";
+						}
+						
+						[self addItemWithTitle:title atIndex:insertIndex action:@selector(openCustomURL:) keyEquivalent:keyEquiv];
+						NSMenuItem *item = [self itemAtIndex:insertIndex];
+						[item setRepresentedObject:urlString];
+						insertIndex++;
+						
+						if ([title hasPrefix:@"About"]) {
+							[self addSeperatorAtIndex:insertIndex];
+							insertIndex++;
+						}
+					}
+				}
+				[self addSeperatorAtIndex:insertIndex];
+			}
+		}
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"File", nil)]) {
 		[self removeItemWithTitle:@"New Tab"];
@@ -735,6 +790,68 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 - (void)cycleWindows:(id)sender {
 	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_Grave);
 }
+
+#ifdef SSB_MODE
+- (NSString *)getAppTempDirectory {
+	NSString *appName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
+
+	NSString *safeAppName = [
+		[appName componentsSeparatedByCharactersInSet:[[NSCharacterSet alphanumericCharacterSet] invertedSet]]
+		componentsJoinedByString:@""
+	];
+	
+	// In theory, there should only be one temporary directory per app.
+	// However, if an old directory was not cleaned up properly, it is possible there will be more than one.
+	// In this case, the temporary directory which was most recently modified is almost certainly the correct one.
+	NSArray *tempDirs = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:NSTemporaryDirectory() error:nil];
+	NSString *mostRecentPath = nil;
+	NSDate *mostRecentDate = nil;
+	for (NSString *dir in tempDirs) {
+		// mktemp -dt creates directories like "AppName.XXXXXX"
+		NSString *expectedPrefix = [safeAppName stringByAppendingString:@"."];
+		if ([dir hasPrefix:expectedPrefix]) {
+			NSString *fullPath = [NSTemporaryDirectory() stringByAppendingPathComponent:dir];
+			BOOL isDirectory;
+			if ([[NSFileManager defaultManager] fileExistsAtPath:fullPath isDirectory:&isDirectory] && isDirectory) {
+				// Check if ssb-helper.py exists in this directory
+				NSString *helperPath = [fullPath stringByAppendingPathComponent:@"ssb-helper.py"];
+				if ([[NSFileManager defaultManager] fileExistsAtPath:helperPath]) {
+					// Get modification date of this directory
+					NSDictionary *attributes = [
+						[NSFileManager defaultManager] attributesOfItemAtPath:fullPath error:nil
+					];
+					NSDate *modificationDate = [attributes fileModificationDate];
+					
+					// Keep track of the most recently modified directory
+					if (!mostRecentDate || [modificationDate compare:mostRecentDate] == NSOrderedDescending) {
+						mostRecentDate = modificationDate;
+						mostRecentPath = fullPath;
+					}
+				}
+			}
+		}
+	}
+	return mostRecentPath;
+}
+
+- (void)openCustomURL:(id)sender {
+	if ([sender isKindOfClass:[NSMenuItem class]]) {
+		NSMenuItem *menuItem = (NSMenuItem *)sender;
+		NSString *urlString = [menuItem representedObject];					
+		pendingCustomTitle = [menuItem title];
+		
+		NSString *appTempDir = [self getAppTempDirectory];
+		if (appTempDir) {
+			// Write the URL to the navigation file
+			NSString *navigationFile = [appTempDir stringByAppendingPathComponent:@"navigate.txt"];
+			[urlString writeToFile:navigationFile atomically:YES encoding:NSUTF8StringEncoding error:nil];
+			
+			// Send the special keyboard combination to trigger navigation check: Cmd+Shift+F12
+			sendKeyboardEvent(kCGEventFlagMaskCommand | kCGEventFlagMaskShift, kVK_F12);
+		}
+	}
+}
+#endif
 
 @end
 
