@@ -284,8 +284,6 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 #ifdef SSB_MODE
-// Global variable to store the next custom title to use
-static NSString *pendingCustomTitle = nil;
 
 @interface FFM_NSWindow : NSWindow
 @end
@@ -294,32 +292,11 @@ static NSString *pendingCustomTitle = nil;
 @implementation FFM_NSWindow
 
 - (void)setTitle:(NSString*) title {
+	NSString *appName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
 	if ([title isEqualToString:@"Mozilla Firefox"]) {
-		ZKOrig(void, [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]);
+		ZKOrig(void, appName);
 	} else {
-		// Check if we have a pending custom title to use
-		if (pendingCustomTitle) {
-			NSString *customTitle = pendingCustomTitle;
-			pendingCustomTitle = nil; // clear after use
-			
-			//Remove trailing elipses
-			if ([customTitle hasSuffix:@"…"]) {
-				customTitle = [customTitle substringToIndex:[customTitle length] - 1];
-			} else if ([customTitle hasSuffix:@"..."]) {
-				customTitle = [customTitle substringToIndex:[customTitle length] - 3];
-			}
-			
-			//Special case for Preferences
-			if ([customTitle isEqualToString:@"Preferences"]) {
-				customTitle = [NSString stringWithFormat:@"%@ Preferences", [
-					[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"
-				]];
-			}
-			
-			ZKOrig(void, customTitle);
-		} else {
-			ZKOrig(void, title);
-		}
+		return ZKOrig(void, title);
 	}
 }
 
@@ -838,7 +815,6 @@ static NSString *pendingCustomTitle = nil;
 	if ([sender isKindOfClass:[NSMenuItem class]]) {
 		NSMenuItem *menuItem = (NSMenuItem *)sender;
 		NSString *urlString = [menuItem representedObject];					
-		pendingCustomTitle = [menuItem title];
 		
 		NSString *appTempDir = [self getAppTempDirectory];
 		if (appTempDir) {
