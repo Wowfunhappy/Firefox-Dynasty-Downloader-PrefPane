@@ -337,6 +337,37 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	[self fixupMenuItems];
 }
 
+- (void)addCustomMenuItemsFromPlist:(NSString *)plistKey toMenuAtIndex:(NSInteger)insertIndex {
+	NSArray *customMenuItems = [[NSBundle mainBundle] objectForInfoDictionaryKey:plistKey];
+	if (customMenuItems && [customMenuItems isKindOfClass:[NSArray class]] && [customMenuItems count] > 0) {
+		// Add each custom menu item
+		for (NSDictionary *menuItem in customMenuItems) {
+			// Each dictionary has one key-value pair: title -> URL
+			for (NSString *title in menuItem) {
+				NSString *urlString = [menuItem objectForKey:title];
+				
+				NSString *keyEquiv = @"";
+				// Special case for Preferences menu item
+				if ([title hasPrefix:@"Preferences"]) {
+					keyEquiv = @",";
+				}
+				
+				[self addItemWithTitle:title atIndex:insertIndex action:@selector(openCustomURL:) keyEquivalent:keyEquiv];
+				NSMenuItem *item = [self itemAtIndex:insertIndex];
+				[item setRepresentedObject:urlString];
+				insertIndex++;
+				
+				// Add separator after About menu items
+				if ([title hasPrefix:@"About"]) {
+					[self addSeperatorAtIndex:insertIndex];
+					insertIndex++;
+				}
+			}
+		}
+		[self addSeperatorAtIndex:insertIndex];
+	}
+}
+
 - (void)fixupMenuItems {
 #ifndef SSB_MODE
 	if ([[self title] isEqualToString:NSLocalizedString(@"File", nil)]) {
@@ -425,36 +456,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 			NSString stringWithFormat:@"Quit %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]
 		]];
 		
-		// Add custom menu items from Info.plist
-		NSArray *appMenuItems = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"AppMenuItems"];
-		if (appMenuItems && [appMenuItems isKindOfClass:[NSArray class]]) {
-			NSInteger insertIndex = 0;			
-			if ([appMenuItems count] > 0) {				
-				// Add each custom menu item
-				for (NSDictionary *menuItem in appMenuItems) {
-					// Each dictionary has one key-value pair: title -> URL
-					for (NSString *title in menuItem) {
-						NSString *urlString = [menuItem objectForKey:title];
-						
-						NSString *keyEquiv = @"";
-						if ([title hasPrefix:@"Preferences"]) {
-							keyEquiv = @",";
-						}
-						
-						[self addItemWithTitle:title atIndex:insertIndex action:@selector(openCustomURL:) keyEquivalent:keyEquiv];
-						NSMenuItem *item = [self itemAtIndex:insertIndex];
-						[item setRepresentedObject:urlString];
-						insertIndex++;
-						
-						if ([title hasPrefix:@"About"]) {
-							[self addSeperatorAtIndex:insertIndex];
-							insertIndex++;
-						}
-					}
-				}
-				[self addSeperatorAtIndex:insertIndex];
-			}
-		}
+		[self addCustomMenuItemsFromPlist:@"AppMenuItems" toMenuAtIndex:0];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"File", nil)]) {
 		[self removeItemWithTitle:@"New Tab"];
@@ -482,6 +484,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		if (!infoPlistSaysPrintMenuItemEnabled || !infoPlistSaysPrintMenuItemEnabled.boolValue) {
 			[self removeItemWithTitle:@"Print…"];
 		}
+		[self addCustomMenuItemsFromPlist:@"FileMenuItems" toMenuAtIndex:3];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {
 		// `Select All` will sometimes be disabled for no reason. Always enable it.
@@ -555,6 +558,8 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"More Troubleshooting Information"];
 		[self removeItemWithTitle:@"Report Deceptive Site…"];
 		[self removeItemWithTitle:@"Switching to a New Device"];
+		
+		[self addCustomMenuItemsFromPlist:@"HelpMenuItems" toMenuAtIndex:0];
 	}
 	else {
 		//Context menu(s)
