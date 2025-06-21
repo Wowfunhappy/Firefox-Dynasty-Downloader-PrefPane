@@ -1,4 +1,5 @@
-// clang $filename -dynamiclib -framework AppKit -framework Foundation ZKSwizzle.m -o /Applications/Firefox.app/Contents/Frameworks/FirefoxModifier.dylib
+// MACOSX_DEPLOYMENT_TARGET=10.6 clang $filename -dynamiclib -framework AppKit -framework Foundation ZKSwizzle.m -o /Applications/Firefox.app/Contents/Frameworks/FirefoxModifier.dylib
+// MACOSX_DEPLOYMENT_TARGET=10.6 clang $filename -dynamiclib -DSSB_MODE -framework AppKit -framework Foundation ZKSwizzle.m -o ~/Desktop/wat/Web\ App\ Template.app/Contents/Frameworks/FirefoxModifier.dylib
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
@@ -231,7 +232,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 				close(fd);
 				return;
 			}
-			DISPATCH_AFTER(0.1, ^{
+			DISPATCH_AFTER(0.2, ^{
 				// Remove the hidden file
 				unlink([hiddenFilePath UTF8String]);
 
@@ -295,7 +296,15 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	NSString *appName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
 	if ([title isEqualToString:@"Mozilla Firefox"]) {
 		ZKOrig(void, appName);
-	} else {
+	} else if (
+		[title hasSuffix:[NSString stringWithFormat:@"- %@", appName]] ||
+		[title hasSuffix:[NSString stringWithFormat:@"| %@", appName]]
+	) {
+		// Firefox's SSB helper will take care of removing the unwanted suffix.
+		// To avoid a flash, we must avoid setting the title until after SSB helper does its magic.
+		return;
+	}
+	else {
 		return ZKOrig(void, title);
 	}
 }
@@ -335,37 +344,6 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 - (void)_sendMenuOpeningNotification {
 	ZKOrig(void);
 	[self fixupMenuItems];
-}
-
-- (void)addCustomMenuItemsFromPlist:(NSString *)plistKey toMenuAtIndex:(NSInteger)insertIndex {
-	NSArray *customMenuItems = [[NSBundle mainBundle] objectForInfoDictionaryKey:plistKey];
-	if (customMenuItems && [customMenuItems isKindOfClass:[NSArray class]] && [customMenuItems count] > 0) {
-		// Add each custom menu item
-		for (NSDictionary *menuItem in customMenuItems) {
-			// Each dictionary has one key-value pair: title -> URL
-			for (NSString *title in menuItem) {
-				NSString *urlString = [menuItem objectForKey:title];
-				
-				NSString *keyEquiv = @"";
-				// Special case for Preferences menu item
-				if ([title hasPrefix:@"Preferences"]) {
-					keyEquiv = @",";
-				}
-				
-				[self addItemWithTitle:title atIndex:insertIndex action:@selector(openCustomURL:) keyEquivalent:keyEquiv];
-				NSMenuItem *item = [self itemAtIndex:insertIndex];
-				[item setRepresentedObject:urlString];
-				insertIndex++;
-				
-				// Add separator after About menu items
-				if ([title hasPrefix:@"About"]) {
-					[self addSeperatorAtIndex:insertIndex];
-					insertIndex++;
-				}
-			}
-		}
-		[self addSeperatorAtIndex:insertIndex];
-	}
 }
 
 - (void)fixupMenuItems {
@@ -484,7 +462,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		if (!infoPlistSaysPrintMenuItemEnabled || !infoPlistSaysPrintMenuItemEnabled.boolValue) {
 			[self removeItemWithTitle:@"Print…"];
 		}
-		[self addCustomMenuItemsFromPlist:@"FileMenuItems" toMenuAtIndex:3];
+		[self addCustomMenuItemsFromPlist:@"FileMenuItems" toMenuAtIndex:1];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {
 		// `Select All` will sometimes be disabled for no reason. Always enable it.
@@ -515,15 +493,34 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self addItemWithTitle:@"Reload" atIndex:0 action:@selector(reloadPage:) keyEquivalent:@"r"];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"History", nil)]) {
-		[self removeItemWithTitle:@"Show All History"];
-		[self removeItemWithTitle:@"Clear Recent History…"];
+		// Replace first two menu items with "Back" and "Forward".
+		// Modifying existing items instead of removing and replacing them avoids visual glitches.
+		NSMenuItem *showAllHistoryItem = [self itemWithTitle:@"Show All History"];
+		if (showAllHistoryItem) {
+			[showAllHistoryItem setTitle:@"Back"];
+			[showAllHistoryItem setAction:@selector(back:)];
+			[showAllHistoryItem setTarget:self];
+			[showAllHistoryItem setKeyEquivalent:@"["];
+			[showAllHistoryItem setKeyEquivalentModifierMask:NSCommandKeyMask];
+		}
+		NSMenuItem *clearRecentHistoryItem = [self itemWithTitle:@"Clear Recent History…"];
+		if (clearRecentHistoryItem) {
+			[clearRecentHistoryItem setTitle:@"Forward"];
+			[clearRecentHistoryItem setAction:@selector(forward:)];
+			[clearRecentHistoryItem setTarget:self];
+			[clearRecentHistoryItem setKeyEquivalent:@"]"];
+			[clearRecentHistoryItem setKeyEquivalentModifierMask:NSCommandKeyMask];
+		}
+		
 		[self removeItemWithTitle:@"Restore Previous Session"];
 		[self removeItemWithTitle:@"Search History"];
 		[self removeItemWithTitle:@"Recently Closed Tabs"];
 		[self removeItemWithTitle:@"Recently Closed Windows"];
 		[self removeItemWithTitle:@"Firefox Privacy Notice — Mozilla"];
-		[self addItemWithTitle:@"Back" atIndex:1 action:@selector(back:) keyEquivalent:@"["];
-		[self addItemWithTitle:@"Forward" atIndex:2 action:@selector(forward:) keyEquivalent:@"]"];
+		
+		if ([self numberOfItems] > 4) {
+			[self removeItem: [self itemAtIndex: 4]];
+		}
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Bookmarks", nil)]) {
 		[[NSApp mainMenu] removeItemWithTitle:@"Bookmarks"];
@@ -551,15 +548,25 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[cycleWindowsItem setEnabled:!isCurrentWindowFullScreen];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Help", nil)]) {
-		[self removeItemWithTitle:@"Get Help"];
+		NSString *HelpURL = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"HelpURL"];
+		if (HelpURL && [HelpURL length] > 0) {
+			NSString *appName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
+			NSMenuItem *getHelpItem = [self itemWithTitle:@"Get Help"];
+			if (getHelpItem) {
+				[getHelpItem setTitle:[NSString stringWithFormat:@"%@ Help", appName]];
+				[getHelpItem setAction:@selector(openCustomURL:)];
+				[getHelpItem setTarget:self];
+				[getHelpItem setRepresentedObject:HelpURL];
+			}
+		} else {
+			[self removeItemWithTitle:@"Get Help"];
+		}
 		[self removeItemWithTitle:@"Report Broken Site"];
 		[self removeItemWithTitle:@"Share Ideas and Feedback…"];
 		[self removeItemWithTitle:@"Troubleshoot Mode…"];
 		[self removeItemWithTitle:@"More Troubleshooting Information"];
 		[self removeItemWithTitle:@"Report Deceptive Site…"];
 		[self removeItemWithTitle:@"Switching to a New Device"];
-		
-		[self addCustomMenuItemsFromPlist:@"HelpMenuItems" toMenuAtIndex:0];
 	}
 	else {
 		//Context menu(s)
@@ -603,6 +610,11 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		
 		[self removeItemWithTitle:@"Save Page As…"];
 		[self removeItemWithTitle:@"This Frame"];
+		
+		// App-specific hack. I'm sorry!
+		if ([[[NSApp keyWindow] title] isEqualToString:@"Bitwarden"]) {
+			[self removeItemWithTitle:@"Bitwarden"];
+		}
 	}
 #endif
 
@@ -774,6 +786,37 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 }
 
 #ifdef SSB_MODE
+
+- (void)addCustomMenuItemsFromPlist:(NSString *)plistKey toMenuAtIndex:(NSInteger)insertIndex {
+	NSArray *customMenuItems = [[NSBundle mainBundle] objectForInfoDictionaryKey:plistKey];
+	if (customMenuItems && [customMenuItems isKindOfClass:[NSArray class]] && [customMenuItems count] > 0) {
+		// Add each custom menu item
+		for (NSDictionary *menuItem in customMenuItems) {
+			// Each dictionary has one key-value pair: title -> URL
+			for (NSString *title in menuItem) {
+				NSString *urlString = [menuItem objectForKey:title];
+				
+				NSString *keyEquiv = @"";
+				if ([title hasPrefix:@"Preferences"]) {
+					keyEquiv = @",";
+				}
+				
+				[self addItemWithTitle:title atIndex:insertIndex action:@selector(openCustomURL:) keyEquivalent:keyEquiv];
+				NSMenuItem *item = [self itemAtIndex:insertIndex];
+				[item setRepresentedObject:urlString];
+				insertIndex++;
+				
+				// Add separator after About menu items
+				if ([title hasPrefix:@"About"]) {
+					[self addSeperatorAtIndex:insertIndex];
+					insertIndex++;
+				}
+			}
+		}
+		[self addSeperatorAtIndex:insertIndex];
+	}
+}
+
 - (NSString *)getAppTempDirectory {
 	NSString *appName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
 
