@@ -1,5 +1,5 @@
 // MACOSX_DEPLOYMENT_TARGET=10.6 clang $filename -dynamiclib -framework AppKit -framework Foundation ZKSwizzle.m -o /Applications/Firefox.app/Contents/Frameworks/FirefoxModifier.dylib
-// MACOSX_DEPLOYMENT_TARGET=10.6 clang $filename -dynamiclib -DSSB_MODE -framework AppKit -framework Foundation ZKSwizzle.m -o ~/Desktop/wat/Web\ App\ Template.app/Contents/Frameworks/FirefoxModifier.dylib
+// MACOSX_DEPLOYMENT_TARGET=10.6 clang $filename -dynamiclib -DSSB_MODE -framework AppKit -framework Foundation ZKSwizzle.m -o ~/Desktop/wat/Web\ App\ Template.app/Contents/Frameworks/FirefoxModifier.dylib && ~/Desktop/WAT/Extras/Update\ Existing\ Apps.command --update-apps-folder
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
@@ -284,13 +284,13 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 
-#ifdef SSB_MODE
-
 @interface FFM_NSWindow : NSWindow
 @end
 
 
 @implementation FFM_NSWindow
+
+#ifdef SSB_MODE
 
 - (void)setTitle:(NSString*) title {
 	NSString *appName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
@@ -308,9 +308,14 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		return ZKOrig(void, title);
 	}
 }
+#endif
+
+- (void)close {
+	ZKOrig(void);
+	[[NSApp mainMenu] initializeSubmenus];
+}
 
 @end
-#endif
 
 
 
@@ -440,6 +445,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"New Tab"];
 		[self removeItemWithTitle:@"New Private Window"];
 		[self removeItemWithTitle:@"Open File…"];
+		[self removeItemWithTitle:@"Open Location…"];
 		[self removeItemWithTitle:@"Close Tab"];
 		[self removeItemWithTitle:@"Save Page As…"];
 		[self removeItemWithTitle:@"Work Offline"];
@@ -519,6 +525,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Firefox Privacy Notice — Mozilla"];
 		
 		if ([self numberOfItems] > 4) {
+			// Remove the current page from history.
 			[self removeItem: [self itemAtIndex: 4]];
 		}
 	}
@@ -860,20 +867,70 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 }
 
 - (void)openCustomURL:(id)sender {
-	if ([sender isKindOfClass:[NSMenuItem class]]) {
-		NSMenuItem *menuItem = (NSMenuItem *)sender;
-		NSString *urlString = [menuItem representedObject];					
-		
-		NSString *appTempDir = [self getAppTempDirectory];
-		if (appTempDir) {
-			// Write the URL to the navigation file
-			NSString *navigationFile = [appTempDir stringByAppendingPathComponent:@"navigate.txt"];
-			[urlString writeToFile:navigationFile atomically:YES encoding:NSUTF8StringEncoding error:nil];
-			
-			// Send the special keyboard combination to trigger navigation check: Cmd+Shift+F12
-			sendKeyboardEvent(kCGEventFlagMaskCommand | kCGEventFlagMaskShift, kVK_F12);
+	NSString *navigationFile = [[self getAppTempDirectory] stringByAppendingPathComponent:@"navigate.txt"];
+	
+	// We need there to be at least one existing Firefox window for the SSB Helper extension to run in.
+	BOOL hasSeenWindow = false;
+	for (NSWindow *window in [NSApp windows]) {
+		if ([NSStringFromClass([window class]) isEqualToString:@"ToolbarWindow"]) {
+			hasSeenWindow = YES;
+			break;
 		}
 	}
+	if (!hasSeenWindow) {
+		NSMenuItem *fileMenuItem = [[NSApp mainMenu] itemWithTitle:NSLocalizedString(@"File", nil)];
+		NSMenuItem *newWindowItem = [[fileMenuItem submenu] itemWithTitle:@"New Window"];
+		NSDisableScreenUpdates();
+		[[newWindowItem target] performSelector:[newWindowItem action] withObject:newWindowItem];
+		DISPATCH_AFTER(0.01, ^{ // >= 0.001
+			// Find the window that just opened
+			NSWindow *newWindow = nil;
+			for (NSWindow *window in [NSApp windows]) {
+				if ([NSStringFromClass([window class]) isEqualToString:@"ToolbarWindow"]) {
+					newWindow = window;
+					break;
+				}
+			}
+			[newWindow setAlphaValue: 0];
+			DISPATCH_AFTER(0.01, ^{ // >= 0.001
+				// By now, `setAlphaValue: 0` will have taken effect
+				// so we can safely re-enable screen updates without the new window becoming visible.
+				NSEnableScreenUpdates();
+			});
+			
+			__block void (^checkNavigationFile)(void);
+			checkNavigationFile = ^{
+				BOOL fileExists = navigationFile && [[NSFileManager defaultManager] fileExistsAtPath:navigationFile];
+				
+				if (!fileExists) {
+					// If the URL opened in its own window, we must get rid of the first one we made.
+					// Otherwise, keep it.
+					if (! [newWindow isKeyWindow]) {
+						// Closing the window in a normal way will make Firefox freeze sometimes.
+						[[NSApplication sharedApplication] sendAction:@selector(performClose:) to:newWindow from:nil];
+					} else {
+						[newWindow setAlphaValue: 1];
+					}
+				} else {
+					// File still exists, check again after a short delay
+					DISPATCH_AFTER(0.01, checkNavigationFile);
+				}
+			};
+			DISPATCH_AFTER(1, checkNavigationFile);
+			
+			[self openCustomURL:sender];
+			return;
+		});
+	}
+	
+	NSMenuItem *menuItem = (NSMenuItem *)sender;
+	NSString *urlString = [menuItem representedObject];					
+	
+	// Write the URL to the navigation file
+	[urlString writeToFile:navigationFile atomically:YES encoding:NSUTF8StringEncoding error:nil];
+	
+	// Send the special keyboard combination to trigger navigation check: Cmd+Shift+F12
+	sendKeyboardEvent(kCGEventFlagMaskCommand | kCGEventFlagMaskShift, kVK_F12);
 }
 #endif
 
@@ -932,8 +989,8 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	ZKSwizzle(FFM_NSApplication, NSApplication);
 	ZKSwizzle(FFM_NSMenu, NSMenu);
 	ZKSwizzle(FFM___myNSArrayM, __NSArrayM);
-#ifdef SSB_MODE
 	ZKSwizzle(FFM_NSWindow, NSWindow);
+#ifdef SSB_MODE
 	ZKSwizzle(FFM_UserNotificationCenter, _NSConcreteUserNotificationCenter);
 #endif
 }
