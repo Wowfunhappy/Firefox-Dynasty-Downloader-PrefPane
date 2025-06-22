@@ -939,6 +939,26 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 
+#ifdef SSB_MODE
+@interface FFM_NSMenuItem : NSMenuItem
+@end
+
+
+@implementation FFM_NSMenuItem
+
+- (void)setImage:(NSImage *)image {
+	// Don't put favicons in the history menu in SSB mode, because every item will have the same favicon in most cases.	
+	if ([self menu] && ![[[self menu] title] isEqualToString:NSLocalizedString(@"History", nil)]) {
+		ZKOrig(void, image);
+	}
+}
+
+@end
+#endif
+
+
+
+
 @interface FFM___myNSArrayM : NSMutableArray
 @end
 
@@ -991,6 +1011,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	ZKSwizzle(FFM___myNSArrayM, __NSArrayM);
 	ZKSwizzle(FFM_NSWindow, NSWindow);
 #ifdef SSB_MODE
+	ZKSwizzle(FFM_NSMenuItem, NSMenuItem);
 	ZKSwizzle(FFM_UserNotificationCenter, _NSConcreteUserNotificationCenter);
 #endif
 }
