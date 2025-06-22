@@ -308,6 +308,34 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		return ZKOrig(void, title);
 	}
 }
+
+- (void)setCollectionBehavior:(NSWindowCollectionBehavior)behavior {
+	// Disable fullscreen if a maximum window width or height are set.
+	NSString *maxWidth = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowWidth"];
+	NSString *maxHeight = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowHeight"];
+	if ((maxWidth && [maxWidth length] > 0) || (maxHeight && [maxHeight length] > 0)) {
+		behavior = behavior & ~NSWindowCollectionBehaviorFullScreenPrimary;
+		behavior = behavior & ~NSWindowCollectionBehaviorFullScreenAuxiliary;
+	}
+	
+	ZKOrig(void, behavior);
+}
+
+- (NSWindowCollectionBehavior)collectionBehavior {
+	NSWindowCollectionBehavior behavior = ZKOrig(NSWindowCollectionBehavior);
+	
+	// Check if MaximumWindowWidth or MaximumWindowHeight are set
+	NSString *maxWidth = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowWidth"];
+	NSString *maxHeight = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowHeight"];
+	
+	if ((maxWidth && [maxWidth length] > 0) || (maxHeight && [maxHeight length] > 0)) {
+		// Remove fullscreen capability from the behavior mask
+		behavior = behavior & ~NSWindowCollectionBehaviorFullScreenPrimary;
+		behavior = behavior & ~NSWindowCollectionBehaviorFullScreenAuxiliary;
+	}
+	
+	return behavior;
+}
 #endif
 
 - (void)close {
@@ -497,6 +525,12 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Page Style"];
 		[self removeItemWithTitle:@"Repair Text Encoding"];
 		[self addItemWithTitle:@"Reload" atIndex:0 action:@selector(reloadPage:) keyEquivalent:@"r"];
+		
+		// Remove enter fullscreen menu item if window doesn't support fullscreen
+		if (!([[NSApp keyWindow] collectionBehavior] & NSWindowCollectionBehaviorFullScreenPrimary)) {
+			[self removeItemWithTitle:@"Enter Full Screen"];
+		}
+
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"History", nil)]) {
 		// Replace first two menu items with "Back" and "Forward".
