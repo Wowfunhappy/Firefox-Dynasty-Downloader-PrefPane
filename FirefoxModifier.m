@@ -582,8 +582,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self addSeperatorAtIndex:index];
 		[self addItemWithTitle:@"Cycle Through Windows" atIndex:index action:@selector(cycleWindows:) keyEquivalent:@"`"];
 		
-		NSWindow *currentWindow = [NSApp mainWindow] ?: [NSApp keyWindow];
-		BOOL isCurrentWindowFullScreen = currentWindow && (currentWindow.styleMask & NSFullScreenWindowMask) == NSFullScreenWindowMask;
+		BOOL isCurrentWindowFullScreen = [NSApp keyWindow] && (
+			[NSApp keyWindow].styleMask & NSFullScreenWindowMask
+		) == NSFullScreenWindowMask;
 		
 		NSMenuItem *cycleWindowsItem = [self itemWithTitle:@"Cycle Through Windows"];
 		[cycleWindowsItem setEnabled:!isCurrentWindowFullScreen];
@@ -634,7 +635,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Set Image as Desktop Background…"];
 		
 		[self removeItemWithTitle:@"Copy Link"];
-		[self removeItemWithTitle:@"Copy Link Without Site Tracking"];
+		[self removeItemWithTitle:@"Copy Clean Link"];
 		[self removeItemWithTitle:@"Save Link As…"];
 		[self removeItemWithPrefix:@"Bookmark"];
 		[self removeItemWithSuffix:@"in New Tab"];
