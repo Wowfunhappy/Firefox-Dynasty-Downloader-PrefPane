@@ -557,11 +557,6 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Recently Closed Tabs"];
 		[self removeItemWithTitle:@"Recently Closed Windows"];
 		[self removeItemWithTitle:@"Firefox Privacy Notice — Mozilla"];
-		
-		if ([self numberOfItems] > 4) {
-			// Remove the current page from history.
-			[self removeItem: [self itemAtIndex: 4]];
-		}
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Bookmarks", nil)]) {
 		[[NSApp mainMenu] removeItemWithTitle:@"Bookmarks"];
