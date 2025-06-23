@@ -121,6 +121,12 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 				@"@p",		// print
 			]];
 		}
+		
+		if (![[NSApp mainMenu] itemWithTitle:NSLocalizedString(@"View", nil)]) {
+			shortcutBlacklist = [shortcutBlacklist arrayByAddingObjectsFromArray:@[
+				@"@r",		// reload
+			]];
+		}
 
 		for (NSString *shortcut in shortcutBlacklist) {
 			if ([self event:event matchesShortcut:shortcut]) {
@@ -522,13 +528,19 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	else if ([[self title] isEqualToString:NSLocalizedString(@"View", nil)]) {
 		[self removeItemWithTitle:@"Toolbars"];
 		[self removeItemWithTitle:@"Sidebar"];
+		[self removeItemWithTitle:@"Zoom"];
 		[self removeItemWithTitle:@"Page Style"];
 		[self removeItemWithTitle:@"Repair Text Encoding"];
-		[self addItemWithTitle:@"Reload" atIndex:0 action:@selector(reloadPage:) keyEquivalent:@"r"];
 		
 		// Remove enter fullscreen menu item if window doesn't support fullscreen
 		if (!([[NSApp keyWindow] collectionBehavior] & NSWindowCollectionBehaviorFullScreenPrimary)) {
 			[self removeItemWithTitle:@"Enter Full Screen"];
+		}
+		
+		if ([self numberOfItems] > 1) {
+			[self addItemWithTitle:@"Refresh" atIndex:0 action:@selector(reloadPage:) keyEquivalent:@"r"];
+		} else {
+			[[NSApp mainMenu] removeItemWithTitle:@"View"];
 		}
 
 	}
@@ -629,7 +641,8 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Email Image…"];
 		[self removeItemWithTitle:@"Set Image as Desktop Background…"];
 		
-		[self removeItemWithTitle:@"Copy Link"];
+		NSMenuItem *copyLinkItem = [self itemWithTitle:@"Copy Link"];
+		if (copyLinkItem && ![copyLinkItem image]) [self removeItem:copyLinkItem];
 		[self removeItemWithTitle:@"Copy Clean Link"];
 		[self removeItemWithTitle:@"Save Link As…"];
 		[self removeItemWithPrefix:@"Bookmark"];
