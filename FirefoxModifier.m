@@ -693,8 +693,22 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		index = menuCount;
 	}
 	
-	if ([self indexOfItemWithTitle:NSLocalizedString(title, nil)] != -1) {
-		//Menu item already exists
+	NSInteger existingIndex = [self indexOfItemWithTitle:NSLocalizedString(title, nil)];
+	if (existingIndex != -1) {
+		// Menu item already exists - move it to the desired position if needed
+		if (existingIndex != index) {
+			NSMenuItem *existingItem = [self itemAtIndex:existingIndex];
+			[self removeItemAtIndex:existingIndex];
+			if (index > existingIndex) {
+				index--; // Adjust index after removal
+			}
+			[self insertItem:existingItem atIndex:index];
+		}
+		// Update the action and target
+		NSMenuItem *item = [self itemAtIndex:index];
+		[item setAction:action];
+		[item setTarget:self];
+		[item setKeyEquivalent:keyEquivalent];
 		return;
 	}
 	
