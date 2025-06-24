@@ -66,6 +66,16 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 			// This is our synthetic event from sendKeyboardEvent
 			return ZKOrig(void, event);
 		}
+
+#ifdef SSB_MODE		
+		// Special handling for cmd-= to trigger Zoom In
+		if ([self event:event matchesShortcut:@"@="]) {
+			// Only intercept if Zoom In menu item exists
+			if ([self performActionForItemWithTitle:@"Zoom In" inMenu:[NSApp mainMenu]]) {
+				return;
+			}
+		}
+#endif
 		
 		// Query user-defined key equivalents
 		NSDictionary *userKeyEquivalents = [[NSUserDefaults standardUserDefaults] objectForKey:@"NSUserKeyEquivalents"];
@@ -877,6 +887,12 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 				NSString *keyEquiv = @"";
 				if ([title hasPrefix:@"Preferences"]) {
 					keyEquiv = @",";
+				}		
+				if ([title isEqualToString:@"Zoom In"]) {
+					keyEquiv = @"+";
+				}
+				if ([title isEqualToString:@"Zoom Out"]) {
+					keyEquiv = @"-";
 				}
 				
 				[self addItemWithTitle:title atIndex:insertIndex action:@selector(openCustomURL:) keyEquivalent:keyEquiv];
