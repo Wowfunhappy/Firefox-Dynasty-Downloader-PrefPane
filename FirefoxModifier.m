@@ -190,7 +190,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 - (void)setWindowsMenu:(NSMenu *)menu {
 	ZKOrig(void, menu);
-	DISPATCH_AFTER(0.001, ^{
+	DISPATCH_AFTER(1, ^{
 		[[NSApp mainMenu] initializeSubmenus];
 	});
 }
@@ -502,7 +502,11 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		if (!infoPlistSaysPrintMenuItemEnabled || !infoPlistSaysPrintMenuItemEnabled.boolValue) {
 			[self removeItemWithTitle:@"Print…"];
 		}
+		
 		[self addCustomMenuItemsFromPlist:@"FileMenuItems" toMenuAtIndex:1];
+		if ([self numberOfItems] > 2) {
+			[self addSeperatorAtIndex: [self numberOfItems] - 1];
+		}
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {
 		// `Select All` will sometimes be disabled for no reason. Always enable it.
@@ -532,12 +536,19 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 		[self removeItemWithTitle:@"Page Style"];
 		[self removeItemWithTitle:@"Repair Text Encoding"];
 		
+		[self addCustomMenuItemsFromPlist:@"ViewMenuItems" toMenuAtIndex:0];
+		
 		// Remove enter fullscreen menu item if window doesn't support fullscreen
 		if (!([[NSApp keyWindow] collectionBehavior] & NSWindowCollectionBehaviorFullScreenPrimary)) {
 			[self removeItemWithTitle:@"Enter Full Screen"];
+		} else {
+			// Sometimes, Firefox will randomly give Enter/Exit Full Screen a checkbox.
+			[[self itemWithTitle:@"Enter Full Screen"] setState: NSOffState];
+			[[self itemWithTitle:@"Exit Full Screen"] setState: NSOffState];
 		}
 		
 		if ([self numberOfItems] > 1) {
+			// This isn't worth having if it would end up being the only item in the View menu.
 			[self addItemWithTitle:@"Refresh" atIndex:0 action:@selector(reloadPage:) keyEquivalent:@"r"];
 		} else {
 			[[NSApp mainMenu] removeItemWithTitle:@"View"];
@@ -863,7 +874,6 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 				}
 			}
 		}
-		[self addSeperatorAtIndex:insertIndex];
 	}
 }
 
@@ -967,7 +977,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	}
 	
 	NSMenuItem *menuItem = (NSMenuItem *)sender;
-	NSString *urlString = [menuItem representedObject];					
+	NSString *urlString = [menuItem representedObject];			
 	
 	// Write the URL to the navigation file
 	[urlString writeToFile:navigationFile atomically:YES encoding:NSUTF8StringEncoding error:nil];
@@ -989,10 +999,30 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 @implementation FFM_NSMenuItem
 
-- (void)setImage:(NSImage *)image {
-	// Don't put favicons in the history menu in SSB mode, because every item will have the same favicon in most cases.	
+- (void)setImage:(NSImage *)image {	
 	if ([self menu] && ![[[self menu] title] isEqualToString:NSLocalizedString(@"History", nil)]) {
+		// Don't put favicons in the history menu in SSB mode; every item would have the same favicon in most cases.
 		ZKOrig(void, image);
+	} else {
+		// Change the behavior of history menu items:
+		for (NSWindow *window in [NSApp windows]) {
+			if ([[self title] isEqualToString:[window title]]) {
+				if (window == [NSApp keyWindow]) {
+					[self setState:NSOnState];
+				}
+				// When clicked, switch to the window where this page is already open.
+				objc_setAssociatedObject(self, @selector(targetWindow), window, OBJC_ASSOCIATION_ASSIGN);
+				[self setTarget:self];
+				[self setAction:@selector(activateWindow:)];
+			}
+		}
+	}
+}
+
+- (void)activateWindow:(id)sender {
+	NSWindow *targetWindow = objc_getAssociatedObject(self, @selector(targetWindow));
+	if (targetWindow) {
+		[targetWindow makeKeyAndOrderFront:nil];
 	}
 }
 
