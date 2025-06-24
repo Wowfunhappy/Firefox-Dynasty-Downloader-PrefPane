@@ -387,7 +387,10 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 - (void)fixupMenuItems {
 #ifndef SSB_MODE
-	if ([[self title] isEqualToString:NSLocalizedString(@"File", nil)]) {
+if ([[self title] isEqualToString:@"MozillaProject"]) {
+		[self renameItemWithTitle:@"Preferences" to:@"Preferences…"];
+	}
+	else if ([[self title] isEqualToString:NSLocalizedString(@"File", nil)]) {
 		[self renameItemWithTitle:@"Save Page As…" to:@"Save As…"];
 		[self removeItemWithTitle:@"Work Offline"];
 		[self removeItemWithTitle:@"Import From Another Browser…"];
