@@ -613,7 +613,7 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 	else if ([[self title] isEqualToString:NSLocalizedString(@"View", nil)]) {
 		[self removeItemWithTitle:@"Toolbars"];
 		[self removeItemWithTitle:@"Sidebar"];
-		//[self removeItemWithTitle:@"Zoom"];
+		[self removeItemWithTitle:@"Zoom"];
 		[self removeItemWithTitle:@"Page Style"];
 		[self removeItemWithTitle:@"Repair Text Encoding"];
 		
@@ -683,12 +683,7 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Tools", nil)]) {
 		[[NSApp mainMenu] removeItemWithTitle:@"Tools"];
 	}
-	else if ([[self title] isEqualToString:NSLocalizedString(@"Window", nil)]) {
-		// Don't know why this is broken...
-		//NSMenuItem *zoomItem = [self itemWithTitle:@"Zoom"];
-		//[zoomItem setAction:@selector(zoomWindow:)];
-		//[zoomItem setTarget:self];
-		
+	else if ([[self title] isEqualToString:NSLocalizedString(@"Window", nil)]) {		
 		if (getFirefoxWindowCount() == 0) {
 			[self addItemWithTitle:@"Bring All to Front" atIndex:-1 action:@selector(bringAllToFront:) keyEquivalent:@""];
 			[[self itemWithTitle:@"Bring All to Front"] setEnabled:FALSE];
@@ -958,12 +953,6 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 	)];
 }
 
-- (void)zoomWindow:(id)sender {
-	 NSButton *zoomButton = [[NSApp keyWindow] standardWindowButton:NSWindowZoomButton];
-	[zoomButton performClick:nil];
-	[zoomButton setNeedsDisplay:YES];
-}
-
 #ifdef SSB_MODE
 
 - (void)addCustomMenuItemsFromPlist:(NSString *)plistKey toMenuAtIndex:(NSInteger)insertIndex {
@@ -1123,23 +1112,27 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 @implementation FFM_NSMenuItem
 
 - (void)setImage:(NSImage *)image {	
-	if ([self menu] && ![[[self menu] title] isEqualToString:NSLocalizedString(@"History", nil)]) {
-		// Don't put favicons in the history menu in SSB mode; every item would have the same favicon in most cases.
-		ZKOrig(void, image);
-	} else {
-		// Change the behavior of history menu items:
-		for (NSWindow *window in [NSApp windows]) {
-			if ([[self title] isEqualToString:[window title]]) {
-				if (window == [NSApp keyWindow]) {
-					[self setState:NSOnState];
+	if ([self menu]) {
+		if ([[[self menu] title] isEqualToString:NSLocalizedString(@"History", nil)]) {
+			// Change the behavior of history menu items:
+			for (NSWindow *window in [NSApp windows]) {
+				if ([[self title] isEqualToString:[window title]]) {
+					if (window == [NSApp keyWindow]) {
+						[self setState:NSOnState];
+					}
+					// When clicked, switch to the window where this page is already open.
+					objc_setAssociatedObject(self, @selector(targetWindow), window, OBJC_ASSOCIATION_ASSIGN);
+					[self setTarget:self];
+					[self setAction:@selector(activateWindow:)];
 				}
-				// When clicked, switch to the window where this page is already open.
-				objc_setAssociatedObject(self, @selector(targetWindow), window, OBJC_ASSOCIATION_ASSIGN);
-				[self setTarget:self];
-				[self setAction:@selector(activateWindow:)];
 			}
-		}
+			// We don't want to put favicons in the history menu in SSB mode; every item would have the same icon.
+			return;
+		} 
+		ZKOrig(void, image);
 	}
+	// If we get here, do nothing.
+	// Allowing these menuless items to call setImage messes up spacing in the History menu.
 }
 
 - (void)activateWindow:(id)sender {
