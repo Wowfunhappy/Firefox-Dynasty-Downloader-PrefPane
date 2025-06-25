@@ -9,6 +9,15 @@
 
 #define DISPATCH_AFTER(delayInSeconds, block) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), block)
 
+void displayAlert(NSString* message) {
+	dispatch_async(dispatch_get_main_queue(), ^{
+		NSAlert *alert = [[NSAlert alloc] init];
+		[alert setMessageText:message];
+		[alert addButtonWithTitle:@"OK"];
+		[alert runModal];
+	});
+}
+
 void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	static BOOL isSendingKeyboardEvent = NO;
 	if (isSendingKeyboardEvent) {
