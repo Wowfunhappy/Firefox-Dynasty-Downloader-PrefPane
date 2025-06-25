@@ -341,26 +341,9 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	NSString *maxHeight = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowHeight"];
 	if ((maxWidth && [maxWidth length] > 0) || (maxHeight && [maxHeight length] > 0)) {
 		behavior = behavior & ~NSWindowCollectionBehaviorFullScreenPrimary;
-		behavior = behavior & ~NSWindowCollectionBehaviorFullScreenAuxiliary;
 	}
 	
 	ZKOrig(void, behavior);
-}
-
-- (NSWindowCollectionBehavior)collectionBehavior {
-	NSWindowCollectionBehavior behavior = ZKOrig(NSWindowCollectionBehavior);
-	
-	// Check if MaximumWindowWidth or MaximumWindowHeight are set
-	NSString *maxWidth = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowWidth"];
-	NSString *maxHeight = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowHeight"];
-	
-	if ((maxWidth && [maxWidth length] > 0) || (maxHeight && [maxHeight length] > 0)) {
-		// Remove fullscreen capability from the behavior mask
-		behavior = behavior & ~NSWindowCollectionBehaviorFullScreenPrimary;
-		behavior = behavior & ~NSWindowCollectionBehaviorFullScreenAuxiliary;
-	}
-	
-	return behavior;
 }
 #endif
 
@@ -612,17 +595,21 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		
 		[self addCustomMenuItemsFromPlist:@"ViewMenuItems" toMenuAtIndex:0];
 		
-		// Remove enter fullscreen menu item if window doesn't support fullscreen
-		if (!([[NSApp keyWindow] collectionBehavior] & NSWindowCollectionBehaviorFullScreenPrimary)) {
+		// Check if window supports fullscreen
+		NSString *maxWidth = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowWidth"];
+		NSString *maxHeight = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowHeight"];
+		if ((maxWidth && [maxWidth length] > 0) || (maxHeight && [maxHeight length] > 0)) {
 			[self removeItemWithTitle:@"Enter Full Screen"];
+		} else if ([[[NSApplication sharedApplication] windows] count] == 0) {
+			[[self itemWithTitle:@"Enter Full Screen"] setEnabled: NO];
 		} else {
 			// Sometimes, Firefox will randomly give Enter/Exit Full Screen a checkbox.
 			[[self itemWithTitle:@"Enter Full Screen"] setState: NSOffState];
 			[[self itemWithTitle:@"Exit Full Screen"] setState: NSOffState];
 		}
 		
+		// Refresh isn't worth having if it would end up being the only item in the View menu.
 		if ([self numberOfItems] > 1) {
-			// This isn't worth having if it would end up being the only item in the View menu.
 			[self addItemWithTitle:@"Refresh" atIndex:0 action:@selector(reloadPage:) keyEquivalent:@"r"];
 		} else {
 			[[NSApp mainMenu] removeItemWithTitle:@"View"];
