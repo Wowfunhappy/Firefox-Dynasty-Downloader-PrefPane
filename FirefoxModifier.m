@@ -43,6 +43,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 @interface NSMenu (mine)
 - (void)initializeSubmenus;
 - (void)removeItemWithTitle:(NSString *)title;
+- (void)fixupMenuItems;
 @end
 
 
@@ -364,11 +365,67 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 
 
+@interface MenuDelegateProxy : NSObject {
+	id _originalDelegate;
+}
+@end
+
+@implementation MenuDelegateProxy
+
+- (id)initWithDelegate:(id)delegate {
+	self = [super init];
+	if (self) {
+		_originalDelegate = delegate;
+	}
+	return self;
+}
+
+- (BOOL)respondsToSelector:(SEL)aSelector {
+	return [_originalDelegate respondsToSelector:aSelector] || [super respondsToSelector:aSelector];
+}
+
+- (void)forwardInvocation:(NSInvocation *)invocation {
+	[invocation invokeWithTarget:_originalDelegate];
+}
+
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel {
+	return [_originalDelegate methodSignatureForSelector:sel];
+}
+
+- (void)menuWillOpen:(NSMenu *)menu {
+	// Call original delegate's menuWillOpen if it has one
+	if ([_originalDelegate respondsToSelector:@selector(menuWillOpen:)]) {
+		[_originalDelegate menuWillOpen:menu];
+	}
+	// Then fix up menu items
+	[menu fixupMenuItems];
+}
+
+@end
+
+
+
+
 @interface FFM_NSMenu : NSMenu
 @end
 
 
 @implementation FFM_NSMenu
+
+- (void)setDelegate:(id<NSMenuDelegate>)delegate {
+	if (delegate) {
+		Class delegateClass = [delegate class];
+		NSString *className = NSStringFromClass(delegateClass);
+		
+		// Wrap MenuDelegate and ApplicationMenuDelegate with our proxy
+		if ([className isEqualToString:@"MenuDelegate"] || [className isEqualToString:@"ApplicationMenuDelegate"]) {
+			MenuDelegateProxy *proxy = [[MenuDelegateProxy alloc] initWithDelegate:delegate];
+			ZKOrig(void, proxy);
+			return;
+		}
+	}
+	ZKOrig(void, delegate);
+}
 
 - (void)initializeSubmenus{
 	// Initializing menus ensures that that:
@@ -388,11 +445,6 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 			[[menuItem submenu] initializeSubmenus];
 		}
 	}
-}
-
-- (void)_sendMenuOpeningNotification {
-	ZKOrig(void);
-	[self fixupMenuItems];
 }
 
 - (void)fixupMenuItems {
