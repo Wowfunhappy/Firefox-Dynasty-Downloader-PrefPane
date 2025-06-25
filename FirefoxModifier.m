@@ -46,6 +46,16 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 	});
 }
 
+int getFirefoxWindowCount() {
+	int windowCount = 0;
+	for (NSWindow *window in [NSApp windows]) {
+		if ([NSStringFromClass([window class]) isEqualToString:@"ToolbarWindow"]) {
+			windowCount++;
+		}
+	}
+	return windowCount;
+}
+
 
 
 
@@ -210,7 +220,7 @@ void sendKeyboardEvent(CGEventFlags flags, CGKeyCode keyCode) {
 
 - (void)setWindowsMenu:(NSMenu *)menu {
 	ZKOrig(void, menu);
-	DISPATCH_AFTER(1, ^{
+	DISPATCH_AFTER(0.1, ^{
 		[[NSApp mainMenu] initializeSubmenus];
 	});
 }
@@ -455,25 +465,33 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		[self addSeperatorAtIndex:6];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {
+		[[self itemWithTitle:@"Undo"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Redo"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Cut"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Copy"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Paste"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Delete"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Select All"] setEnabled: getFirefoxWindowCount() > 0 ];
+		
 		[self renameItemWithTitle:@"Find in Page…" to:@"Find…"];
 		[self renameItemWithTitle:@"Find Again" to:@"Find Next"];
 		[self addItemWithTitle:@"Find Previous" atIndex:12 action:@selector(findPrev:) keyEquivalent:@"$@g"];
-		
-		// `Select All` will sometimes be disabled for no reason. Always enable it.
-		NSMenuItem *selectAllItem = [self itemWithTitle:NSLocalizedString(@"Select All", nil)];
-		[selectAllItem setEnabled:YES];
+		[[self itemWithTitle:@"Find Previous"] setEnabled: getFirefoxWindowCount() > 0 ];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"View", nil)]) {
 		[self removeItemWithTitle:@"Page Style"];
 		[self removeItemWithTitle:@"Repair Text Encoding"];
 		[self addItemWithTitle:@"Reload Page" atIndex:5 action:@selector(reloadPage:) keyEquivalent:@"r"];
+		[[self itemWithTitle:@"Reload Page"] setEnabled: getFirefoxWindowCount() > 0 ];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"History", nil)]) {
 		[self removeItemWithTitle:@"Synced Tabs"];
 		[self removeItemWithTitle:@"Hidden Tabs"];
 		
 		[self addItemWithTitle:@"Back" atIndex:0 action:@selector(back:) keyEquivalent:@"["];
+		[[self itemWithTitle:@"Back"] setEnabled: getFirefoxWindowCount() > 0 ];
 		[self addItemWithTitle:@"Forward" atIndex:1 action:@selector(forward:) keyEquivalent:@"]"];
+		[[self itemWithTitle:@"Forward"] setEnabled: getFirefoxWindowCount() > 0 ];
 		[self addSeperatorAtIndex:2];
 
 		[self renameItemWithTitle:@"Search History" to:@"Search History…"];
@@ -487,23 +505,22 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		[self renameItemWithTitle:@"Browser Tools" to:@"Developer"];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Window", nil)]) {
-		//Find position of last seperator
-		int index = [self numberOfItems] - 1;
-		while (index > 0) {
-			if ([[self itemAtIndex:index] isSeparatorItem]) {
-				break;
+		if (getFirefoxWindowCount() == 0) {
+			[self addItemWithTitle:@"Bring All to Front" atIndex:-1 action:@selector(bringAllToFront:) keyEquivalent:@""];
+			[[self itemWithTitle:@"Bring All to Front"] setEnabled:FALSE];
+			[self addSeperatorAtIndex:[self numberOfItems] - 1];
+		} else {
+			int index = [self numberOfItems] - 1;
+			while (index > 0) {
+				if ([[self itemAtIndex:index] isSeparatorItem]) {
+					break;
+				}
+				index--;
 			}
-			index--;
+			[self addItemWithTitle:@"Bring All to Front" atIndex:index action:@selector(bringAllToFront:) keyEquivalent:@""];
+			[[self itemWithTitle:@"Bring All to Front"] setEnabled: TRUE];
+			[self addSeperatorAtIndex:index];
 		}
-		[self addItemWithTitle:@"Bring All to Front" atIndex:index action:@selector(bringAllToFront:) keyEquivalent:@""];
-		[self addSeperatorAtIndex:index];
-		[self addItemWithTitle:@"Cycle Through Windows" atIndex:index action:@selector(cycleWindows:) keyEquivalent:@"`"];
-		
-		NSWindow *currentWindow = [NSApp mainWindow] ?: [NSApp keyWindow];
-		BOOL isCurrentWindowFullScreen = currentWindow && (currentWindow.styleMask & NSFullScreenWindowMask) == NSFullScreenWindowMask;
-		
-		NSMenuItem *cycleWindowsItem = [self itemWithTitle:@"Cycle Through Windows"];
-		[cycleWindowsItem setEnabled:!isCurrentWindowFullScreen];
 	}
 	else {
 		// Context menu
@@ -566,17 +583,24 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		}
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Edit", nil)]) {
-		// `Select All` will sometimes be disabled for no reason. Always enable it.
-		NSMenuItem *selectAllItem = [self itemWithTitle:NSLocalizedString(@"Select All", nil)];
-		[selectAllItem setEnabled:YES];
+		[[self itemWithTitle:@"Undo"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Redo"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Cut"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Copy"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Paste"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Delete"] setEnabled: getFirefoxWindowCount() > 0 ];
+		[[self itemWithTitle:@"Select All"] setEnabled: getFirefoxWindowCount() > 0 ];
 		
 		// Some web apps will override the default find keyboard shortcuts with their own UI.
 		// We want the menu items themselves to bring up that same UI.
 		[self removeItemWithTitle:@"Find in Page…"];
 		[self removeItemWithTitle:@"Find Again"];
 		[self addItemWithTitle:@"Find…" atIndex:10 action:@selector(find:) keyEquivalent:@"f"];
+		[[self itemWithTitle:@"Find…"] setEnabled: getFirefoxWindowCount() > 0 ];
 		[self addItemWithTitle:@"Find Next" atIndex:11 action:@selector(findNext:) keyEquivalent:@"g"];
+		[[self itemWithTitle:@"Find Next"] setEnabled: getFirefoxWindowCount() > 0 ];
 		[self addItemWithTitle:@"Find Previous" atIndex:12 action:@selector(findPrev:) keyEquivalent:@"$@g"];
+		[[self itemWithTitle:@"Find Previous"] setEnabled: getFirefoxWindowCount() > 0 ];
 
 		// Similar to above, some web apps override the default undo/redo keyboard shortcuts with their own handlers.
 		// We want the menu items themselves to use the same handlers.
@@ -589,7 +613,7 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 	else if ([[self title] isEqualToString:NSLocalizedString(@"View", nil)]) {
 		[self removeItemWithTitle:@"Toolbars"];
 		[self removeItemWithTitle:@"Sidebar"];
-		[self removeItemWithTitle:@"Zoom"];
+		//[self removeItemWithTitle:@"Zoom"];
 		[self removeItemWithTitle:@"Page Style"];
 		[self removeItemWithTitle:@"Repair Text Encoding"];
 		
@@ -600,9 +624,10 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		NSString *maxHeight = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MaximumWindowHeight"];
 		if ((maxWidth && [maxWidth length] > 0) || (maxHeight && [maxHeight length] > 0)) {
 			[self removeItemWithTitle:@"Enter Full Screen"];
-		} else if ([[[NSApplication sharedApplication] windows] count] == 0) {
+		} else if (getFirefoxWindowCount() == 0) {
 			[[self itemWithTitle:@"Enter Full Screen"] setEnabled: NO];
 		} else {
+			[[self itemWithTitle:@"Enter Full Screen"] setEnabled: YES];
 			// Sometimes, Firefox will randomly give Enter/Exit Full Screen a checkbox.
 			[[self itemWithTitle:@"Enter Full Screen"] setState: NSOffState];
 			[[self itemWithTitle:@"Exit Full Screen"] setState: NSOffState];
@@ -611,36 +636,46 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		// Refresh isn't worth having if it would end up being the only item in the View menu.
 		if ([self numberOfItems] > 1) {
 			[self addItemWithTitle:@"Refresh" atIndex:0 action:@selector(reloadPage:) keyEquivalent:@"r"];
+			[[self itemWithTitle:@"Refresh"] setEnabled: getFirefoxWindowCount() > 0 ];
 		} else {
 			[[NSApp mainMenu] removeItemWithTitle:@"View"];
 		}
 
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"History", nil)]) {
-		// Replace first two menu items with "Back" and "Forward".
-		// Modifying existing items instead of removing and replacing them avoids visual glitches.
-		NSMenuItem *showAllHistoryItem = [self itemWithTitle:@"Show All History"];
-		if (showAllHistoryItem) {
-			[showAllHistoryItem setTitle:@"Back"];
-			[showAllHistoryItem setAction:@selector(back:)];
-			[showAllHistoryItem setTarget:self];
-			[showAllHistoryItem setKeyEquivalent:@"["];
-			[showAllHistoryItem setKeyEquivalentModifierMask:NSCommandKeyMask];
+		NSNumber *infoPlistSaysHistoryMenuEnabled = [
+			[NSBundle mainBundle] objectForInfoDictionaryKey:@"EnableHistoryMenu"
+		];
+		if (!infoPlistSaysHistoryMenuEnabled || !infoPlistSaysHistoryMenuEnabled.boolValue) {
+			[[NSApp mainMenu] removeItemWithTitle:@"History"];
+		} else {
+			// Replace first two menu items with "Back" and "Forward".
+			// Modifying existing items instead of removing and replacing them avoids visual glitches.
+			NSMenuItem *showAllHistoryItem = [self itemWithTitle:@"Show All History"];
+			if (showAllHistoryItem) {
+				[showAllHistoryItem setTitle:@"Back"];
+				[showAllHistoryItem setAction:@selector(back:)];
+				[showAllHistoryItem setTarget:self];
+				[showAllHistoryItem setKeyEquivalent:@"["];
+				[showAllHistoryItem setKeyEquivalentModifierMask:NSCommandKeyMask];
+			}
+			[[self itemWithTitle:@"Back"] setEnabled: getFirefoxWindowCount() > 0 ];
+			NSMenuItem *clearRecentHistoryItem = [self itemWithTitle:@"Clear Recent History…"];
+			if (clearRecentHistoryItem) {
+				[clearRecentHistoryItem setTitle:@"Forward"];
+				[clearRecentHistoryItem setAction:@selector(forward:)];
+				[clearRecentHistoryItem setTarget:self];
+				[clearRecentHistoryItem setKeyEquivalent:@"]"];
+				[clearRecentHistoryItem setKeyEquivalentModifierMask:NSCommandKeyMask];
+			}
+			[[self itemWithTitle:@"Forward"] setEnabled: getFirefoxWindowCount() > 0 ];
+			
+			[self removeItemWithTitle:@"Restore Previous Session"];
+			[self removeItemWithTitle:@"Search History"];
+			[self removeItemWithTitle:@"Recently Closed Tabs"];
+			[self removeItemWithTitle:@"Recently Closed Windows"];
+			[self removeItemWithTitle:@"Firefox Privacy Notice — Mozilla"];
 		}
-		NSMenuItem *clearRecentHistoryItem = [self itemWithTitle:@"Clear Recent History…"];
-		if (clearRecentHistoryItem) {
-			[clearRecentHistoryItem setTitle:@"Forward"];
-			[clearRecentHistoryItem setAction:@selector(forward:)];
-			[clearRecentHistoryItem setTarget:self];
-			[clearRecentHistoryItem setKeyEquivalent:@"]"];
-			[clearRecentHistoryItem setKeyEquivalentModifierMask:NSCommandKeyMask];
-		}
-		
-		[self removeItemWithTitle:@"Restore Previous Session"];
-		[self removeItemWithTitle:@"Search History"];
-		[self removeItemWithTitle:@"Recently Closed Tabs"];
-		[self removeItemWithTitle:@"Recently Closed Windows"];
-		[self removeItemWithTitle:@"Firefox Privacy Notice — Mozilla"];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Bookmarks", nil)]) {
 		[[NSApp mainMenu] removeItemWithTitle:@"Bookmarks"];
@@ -649,24 +684,27 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		[[NSApp mainMenu] removeItemWithTitle:@"Tools"];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Window", nil)]) {
-		//Find position of last seperator
-		int index = [self numberOfItems] - 1;
-		while (index > 0) {
-			if ([[self itemAtIndex:index] isSeparatorItem]) {
-				break;
+		// Don't know why this is broken...
+		//NSMenuItem *zoomItem = [self itemWithTitle:@"Zoom"];
+		//[zoomItem setAction:@selector(zoomWindow:)];
+		//[zoomItem setTarget:self];
+		
+		if (getFirefoxWindowCount() == 0) {
+			[self addItemWithTitle:@"Bring All to Front" atIndex:-1 action:@selector(bringAllToFront:) keyEquivalent:@""];
+			[[self itemWithTitle:@"Bring All to Front"] setEnabled:FALSE];
+			[self addSeperatorAtIndex:[self numberOfItems] - 1];
+		} else {
+			int index = [self numberOfItems] - 1;
+			while (index > 0) {
+				if ([[self itemAtIndex:index] isSeparatorItem]) {
+					break;
+				}
+				index--;
 			}
-			index--;
+			[self addItemWithTitle:@"Bring All to Front" atIndex:index action:@selector(bringAllToFront:) keyEquivalent:@""];
+			[[self itemWithTitle:@"Bring All to Front"] setEnabled: TRUE];
+			[self addSeperatorAtIndex:index];
 		}
-		[self addItemWithTitle:@"Bring All to Front" atIndex:index action:@selector(bringAllToFront:) keyEquivalent:@""];
-		[self addSeperatorAtIndex:index];
-		[self addItemWithTitle:@"Cycle Through Windows" atIndex:index action:@selector(cycleWindows:) keyEquivalent:@"`"];
-		
-		BOOL isCurrentWindowFullScreen = [NSApp keyWindow] && (
-			[NSApp keyWindow].styleMask & NSFullScreenWindowMask
-		) == NSFullScreenWindowMask;
-		
-		NSMenuItem *cycleWindowsItem = [self itemWithTitle:@"Cycle Through Windows"];
-		[cycleWindowsItem setEnabled:!isCurrentWindowFullScreen];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Help", nil)]) {
 		NSString *HelpURL = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"HelpURL"];
@@ -678,6 +716,9 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 				[getHelpItem setAction:@selector(openCustomURL:)];
 				[getHelpItem setTarget:self];
 				[getHelpItem setRepresentedObject:HelpURL];
+				if ([HelpURL hasPrefix:@"javascript:"]) {
+					[getHelpItem setEnabled: getFirefoxWindowCount() > 0 ];
+				}
 			}
 		} else {
 			[self removeItemWithTitle:@"Get Help"];
@@ -917,8 +958,10 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 	)];
 }
 
-- (void)cycleWindows:(id)sender {
-	sendKeyboardEvent(kCGEventFlagMaskCommand, kVK_ANSI_Grave);
+- (void)zoomWindow:(id)sender {
+	 NSButton *zoomButton = [[NSApp keyWindow] standardWindowButton:NSWindowZoomButton];
+	[zoomButton performClick:nil];
+	[zoomButton setNeedsDisplay:YES];
 }
 
 #ifdef SSB_MODE
@@ -946,6 +989,11 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 				[self addItemWithTitle:title atIndex:insertIndex action:@selector(openCustomURL:) keyEquivalent:keyEquiv];
 				NSMenuItem *item = [self itemAtIndex:insertIndex];
 				[item setRepresentedObject:urlString];
+				
+				if ([urlString hasPrefix:@"javascript:"]) {
+					[item setEnabled: getFirefoxWindowCount() > 0 ];
+				}
+				
 				insertIndex++;
 				
 				// Add separator after About menu items
@@ -953,6 +1001,7 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 					[self addSeperatorAtIndex:insertIndex];
 					insertIndex++;
 				}
+								
 			}
 		}
 	}
@@ -1004,14 +1053,7 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 	NSString *navigationFile = [[self getAppTempDirectory] stringByAppendingPathComponent:@"navigate.txt"];
 	
 	// We need there to be at least one existing Firefox window for the SSB Helper extension to run in.
-	BOOL hasSeenWindow = false;
-	for (NSWindow *window in [NSApp windows]) {
-		if ([NSStringFromClass([window class]) isEqualToString:@"ToolbarWindow"]) {
-			hasSeenWindow = YES;
-			break;
-		}
-	}
-	if (!hasSeenWindow) {
+	if (getFirefoxWindowCount() == 0) {
 		NSMenuItem *fileMenuItem = [[NSApp mainMenu] itemWithTitle:NSLocalizedString(@"File", nil)];
 		NSMenuItem *newWindowItem = [[fileMenuItem submenu] itemWithTitle:@"New Window"];
 		NSDisableScreenUpdates();
