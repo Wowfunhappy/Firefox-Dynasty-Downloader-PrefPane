@@ -220,7 +220,7 @@ int getFirefoxWindowCount() {
 
 - (void)setWindowsMenu:(NSMenu *)menu {
 	ZKOrig(void, menu);
-	DISPATCH_AFTER(0.1, ^{
+	DISPATCH_AFTER(0.01, ^{
 		[[NSApp mainMenu] initializeSubmenus];
 	});
 }
@@ -359,7 +359,9 @@ int getFirefoxWindowCount() {
 
 - (void)close {
 	ZKOrig(void);
-	[[NSApp mainMenu] initializeSubmenus];
+	DISPATCH_AFTER(0.01, ^{
+		[[NSApp mainMenu] initializeSubmenus];
+	});
 }
 
 @end
@@ -483,6 +485,10 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		[self removeItemWithTitle:@"Repair Text Encoding"];
 		[self addItemWithTitle:@"Reload Page" atIndex:5 action:@selector(reloadPage:) keyEquivalent:@"r"];
 		[[self itemWithTitle:@"Reload Page"] setEnabled: getFirefoxWindowCount() > 0 ];
+		
+		// Firefox Dynasty gives Enter/Exit Full Screen a checkbox for some reason.
+		[[self itemWithTitle:@"Enter Full Screen"] setState: NSOffState];
+		[[self itemWithTitle:@"Exit Full Screen"] setState: NSOffState];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"History", nil)]) {
 		[self removeItemWithTitle:@"Synced Tabs"];
@@ -501,7 +507,7 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		[self renameItemWithTitle:@"Search Bookmarks" to:@"Search Bookmarks…"];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Tools", nil)]) {
-		[self removeItemWithTitle:@"Add-ons and Themes"];
+		[self removeItemWithTitle:@"Extensions and Themes"];
 		[self renameItemWithTitle:@"Browser Tools" to:@"Developer"];
 	}
 	else if ([[self title] isEqualToString:NSLocalizedString(@"Window", nil)]) {
@@ -628,7 +634,7 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 			[[self itemWithTitle:@"Enter Full Screen"] setEnabled: NO];
 		} else {
 			[[self itemWithTitle:@"Enter Full Screen"] setEnabled: YES];
-			// Sometimes, Firefox will randomly give Enter/Exit Full Screen a checkbox.
+			// Firefox Dynasty gives Enter/Exit Full Screen a checkbox for some reason.
 			[[self itemWithTitle:@"Enter Full Screen"] setState: NSOffState];
 			[[self itemWithTitle:@"Exit Full Screen"] setState: NSOffState];
 		}
