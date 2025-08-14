@@ -11,8 +11,11 @@ mkdir -p "${OUTPUT_DIR}/Contents/Resources"
 
 defaults write "$(pwd)/Info.plist" CFBundleExecutable "$TITLE"
 defaults write "$(pwd)/Info.plist" CFBundleIdentifier "$BUNDLE_IDENTIFIER"
+defaults write "$(pwd)/Info.plist" CFBundleInfoDictionaryVersion "6.0"
 defaults write "$(pwd)/Info.plist" CFBundleName "$TITLE"
+defaults write "$(pwd)/Info.plist" CFBundlePackageType "BNDL"
 defaults write "$(pwd)/Info.plist" CFBundleShortVersionString $(date +"%Y.%m.%d")
+defaults write "$(pwd)/Info.plist" NSPrefPaneIconFile "icon.png"
 defaults write "$(pwd)/Info.plist" NSPrefPaneIconLabel "$ICON_LABEL"
 
 export MACOSX_DEPLOYMENT_TARGET=10.6
