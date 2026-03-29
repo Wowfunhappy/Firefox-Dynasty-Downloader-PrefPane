@@ -1,9 +1,11 @@
 #!/bin/bash
 
-TITLE="Firefox Dynasty Downloader"
-ICON_LABEL="Firefox \nDownloader"
-BUNDLE_IDENTIFIER="Wowfunhappy.FF-Dynasty-Downloader"
+TITLE="Momiji Downloader"
+ICON_LABEL="Momiji \nDownloader"
+BUNDLE_IDENTIFIER="Wowfunhappy.Momiji-Downloader"
 OUTPUT_DIR="${TITLE}.prefPane"
+
+rm -r "$OUTPUT_DIR" || true
 
 # Create necessary directories
 mkdir -p "${OUTPUT_DIR}/Contents/MacOS"
@@ -29,5 +31,5 @@ cp -R libs "${OUTPUT_DIR}/Contents/"
 # Compile the Objective-C code
 clang -framework Cocoa -framework PreferencePanes -o "${OUTPUT_DIR}/Contents/MacOS/${TITLE}" -arch x86_64 -arch i386 -bundle "PrefPane.m"
 
-chmod -R 755 "Firefox Dynasty Downloader.prefPane"
+chmod -R 755 "$OUTPUT_DIR"
 echo "Build complete. You can find the PrefPane at ${OUTPUT_DIR}"

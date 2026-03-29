@@ -1,0 +1,16 @@
+{
+  "manifest_version": 2,
+  "name": "Legacy Mac OS X Workarounds",
+  "version": "1.0.2",
+  "description": "Fixes issues in Firefox derivatives on old Mac OS X. You should enable this.",
+
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
+  ],
+
+  "background": {
+    "scripts": ["background.js"]
+  }
+}

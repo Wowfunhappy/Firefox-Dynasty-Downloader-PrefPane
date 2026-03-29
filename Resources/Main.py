@@ -10,6 +10,9 @@ import zipfile
 import shutil
 import re
 import time
+import platform
+from distutils.version import LooseVersion
+from distutils.dir_util import copy_tree as merge_tree
 
 def get_path_to_me(escape_chars=False):
 	path = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
@@ -33,20 +36,23 @@ def run_applescript(script):
 		output, error = process.communicate()
 		
 		if process.returncode == 0:
-			return output.strip()
+			return output.decode('utf-8').strip()
 		else:
-			print("Error:", error.strip())
+			print("Error:", error.decode('utf-8').strip())
 			return None
 	except Exception as e:
 		print("Exception occurred while running Applescript:", str(e))
 		return None
 	
-def tell_system_events(script):
-	# Always use tell_system_events() instead of run_applescript() when displaying a GUI.
+def run_gui_applescript(script):
+	# Always use run_gui_applescript() instead of run_applescript() when displaying a GUI.
 	# Otherwise, the code will fail on OS X 10.8 and below with error "No user interaction allowed."
 	# On these operating systems, osascript cannot create GUIs by itself, it must tell System Events to do so.
-	run_applescript('tell application "System Events" to activate')
-	return run_applescript('tell application "System Events" to ' + script);
+	if LooseVersion(platform.mac_ver()[0]) < LooseVersion("10.9"):
+		run_applescript('tell application "System Events" to activate')
+		return run_applescript('tell application "System Events" to ' + script)
+	else:
+		return run_applescript(script)
 	
 def display_list(list, title, prompt):
 	applescript_list_string = "{"
@@ -57,7 +63,7 @@ def display_list(list, title, prompt):
 		else:
 			applescript_list_string = applescript_list_string + '"}'
 	
-	return tell_system_events('choose from list ' + applescript_list_string + ' with title "' + title + '" with prompt "' + prompt + '"')
+	return run_gui_applescript('choose from list ' + applescript_list_string + ' with title "' + title + '" with prompt "' + prompt + '"')
 	
 def get_path_of_application(bundle_id):
 	return run_applescript('tell application "Finder" to get POSIX path of (application file id "' + bundle_id + '" as text)')
@@ -75,29 +81,24 @@ def is_in_trash(path):
 	return os.path.commonprefix([os.path.abspath(path), trash_dir]) == trash_dir
 
 def check_github_connection():
+	my_path = get_path_to_me(escape_chars=True)
 	url = "https://github.com"
 	
-	# All uses of curl in this code include the -k flag, disabling SSL certificate verification.
-	# This isn't great for downloading a sensitive app like a web browser.
-	# However, because we need to work on old systems, I don't know what else to do!
+	# We're using a bundled version of curl and a bundled CA certificate store.
+	# This means certificates in Keychain Access will be ignored. This is annoying,
+	# but basically required for the downloader to work without Aqua Proxy installed.
 	
-	# To work around SSL incompatibilities, we are shipping our own copy of curl built against OpenSSL.
-	# In order to verify certificates, we would need to also ship our own certificate store.
-	# However, this would break for users who have actually done the right thing and installed an SSL mitm proxy,
-	# which in the general case is the best way to make SSL work on legacy OS X.
-	
-	# Note that if a proxy is installed, the proxy will hopefully perform certificate verification even if curl doesn't.
-	
-	command = "{}/curl -Isk {} | head -n 1".format(get_path_to_me(escape_chars=True), url)
+	command = "{}/curl -Is --cacert {}/cacert.pem {} | head -n 1".format(my_path, my_path, url)
 	response = run_shell(command)
 	if not response or "200" not in response:
 		print(response)
-		tell_system_events('display alert "Could not connect to Github. Please make sure you are connected to the internet, or try again later." as critical')
+		run_gui_applescript('display alert "Could not connect to Github. Please make sure you are connected to the internet, or try again later." as critical')
 		exit()
 
 def get_github_releases(owner, repo, limit=30):
+	my_path = get_path_to_me(escape_chars=True)
 	url = 'https://api.github.com/repos/{}/{}/releases?per_page={}'.format(owner, repo, limit)
-	command = "{}/curl -sk {}".format(get_path_to_me(escape_chars=True), url)
+	command = "{}/curl --cacert {}/cacert.pem -s {}".format(my_path, my_path, url)
 	response = run_shell(command)
 	if response:
 		releases = json.loads(response)
@@ -110,42 +111,36 @@ def download_firefox_contents_to_temporary_directory(download_url):
 	temp_file_path = tempfile.mktemp()
 	
 	try:
-		command = "{}/curl -k -L {} -o {}".format(get_path_to_me(escape_chars=True), download_url, temp_file_path)
+		my_path = get_path_to_me(escape_chars=True)
+		command = "{}/curl --cacert {}/cacert.pem -L {} -o {}".format(my_path, my_path, download_url, temp_file_path)
 		run_shell(command)
 		
+		run_shell("hdiutil attach -nobrowse -plist " + temp_file_path)
 		temp_dir = tempfile.mkdtemp()
-		with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-			for member in zip_ref.infolist():
-				if member.filename.startswith('Firefox.app/Contents/'):
-					member_path = member.filename.split('/', 1)[-1]
-					target_path = os.path.join(temp_dir, member_path)
-					
-					if member.filename.endswith('/'):
-						if not os.path.exists(target_path):
-							os.makedirs(target_path)
-					else:
-						with open(target_path, 'wb') as out_file:
-							out_file.write(zip_ref.read(member))
-							
-						if member.external_attr >> 16 & stat.S_IXUSR:
-							st = os.stat(target_path)
-							os.chmod(target_path, st.st_mode | stat.S_IEXEC)
+		shutil.copytree("/Volumes/Momiji/Momiji.app/Contents/", os.path.join(temp_dir, 'Contents'))
 		
+		run_shell('hdiutil detach "/Volumes/Momiji"')
 		os.remove(temp_file_path)
 		return os.path.join(temp_dir, 'Contents')
+		
 	except Exception as e:
-		print('Error downloading file:', e)
+		run_gui_applescript('display alert "Error downloading file: ' + str(e) + '" as critical')
 		exit()
+
+
+
+
+# MAIN SCRIPT START
 
 check_github_connection()
 
-releases = get_github_releases("i3roly", "firefox-dynasty", 10)
+releases = get_github_releases("aobaharuki2005", "momiji-web-browser", 10)
 
 release_strings = []
 for release in releases:
 	release_strings.append(release["tag_name"])
 
-selected_build_str = display_list(release_strings, "Firefox Downloader", "Choose a version of Firefox Dynasty to install.")
+selected_build_str = display_list(release_strings, "Momiji Downloader", "Choose a version of Momiji to install.")
 
 #Find index of selected_build_str
 for release in releases:
@@ -171,17 +166,58 @@ run_shell(get_path_to_me(escape_chars=True) + "/insert_dylib --inplace --strip-c
 for root, dirs, files in os.walk(temp_directory):
 	for file in files:
 		file_path = os.path.join(root, file)
-		run_shell(get_path_to_me(escape_chars=True) + "/jtool2 --sign --inplace " + file)
+		run_shell(get_path_to_me(escape_chars=True) + "/jtool2 --sign --inplace " + file_path)
 
-firefox_path = get_path_of_application("org.mozilla.firefox")
+firefox_path = get_path_of_application("org.mozilla.momiji")
 if not firefox_path or not is_on_startup_disk(firefox_path) or is_in_trash(firefox_path):
-	firefox_path = tell_system_events('get POSIX path of (choose folder with prompt "Where would you like to save the Firefox app?" default location "Applications") as text') + "/Firefox.app"
+	firefox_path = run_gui_applescript('get POSIX path of (choose folder with prompt "Where would you like to save the Momiji app?" default location "Applications") as text') + "/Momiji.app"
 
 shutil.rmtree(firefox_path + "/Contents", ignore_errors=True)
 shutil.copytree(temp_directory, firefox_path + "/Contents")
 time.sleep(1)
-run_shell("chmod -R 755 " + firefox_path)
-run_shell("touch " + firefox_path)
-
+subprocess.Popen(["touch", firefox_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+subprocess.Popen(["chmod", "-R", "755", firefox_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 shutil.rmtree(temp_directory)
-tell_system_events('display dialog "Your new copy of Firefox Dynasty has been installed." buttons {"OK"}')
+
+
+
+# POST INSTALL SETUP
+
+# Lion CoreText Fix
+if LooseVersion(platform.mac_ver()[0]) < LooseVersion("10.8") and not os.path.exists("/System/Library/Frameworks/CoreText.framework"):
+	run_gui_applescript('do shell script "sudo ln -s /System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/CoreText.framework /System/Library/Frameworks/CoreText.framework" with administrator privileges')
+
+profiles_dir = os.path.expanduser("~/Library/Application Support/Firefox/Profiles/")
+if not os.path.exists(profiles_dir):
+	# No Firefox profile exists yet. Make one.
+	devnull = open(os.devnull, 'w')
+	firefox_bin = os.path.join(firefox_path, "Contents", "MacOS", "firefox")
+	process = subprocess.Popen([firefox_bin, "-headless"], stdout=devnull, stderr=devnull)
+	time.sleep(5)
+	process.kill()
+	process.wait()
+	devnull.close()
+	
+profiles = [a for a in os.listdir(profiles_dir) if os.path.isdir(os.path.join(profiles_dir, a))]
+for profile in profiles:
+	# Copy extensions
+	extensions_dir = os.path.join(profiles_dir, profile) + "/extensions"
+	if not os.path.exists(extensions_dir):
+		os.makedirs(extensions_dir)
+	merge_tree(get_path_to_me() + "/extensions", extensions_dir)
+		
+	# Widevine
+	if LooseVersion(platform.mac_ver()[0]) >= LooseVersion("10.9"):
+		openwv_dir = os.path.join(profiles_dir, profile) + "/gmp-widevinecdm/openwv"
+		if not os.path.exists(openwv_dir):
+			os.makedirs(openwv_dir)
+		shutil.copy2(get_path_to_me() + "/openwv/libwidevinecdm.dylib", openwv_dir)
+		shutil.copy2(get_path_to_me() + "/openwv/manifest.json", openwv_dir)
+
+	#UserChrome
+	chrome_dir = os.path.join(profiles_dir, profile) + "/chrome"
+	if not os.path.exists(chrome_dir):
+		os.makedirs(chrome_dir)
+	shutil.copy2(get_path_to_me() + "/userChrome.css", chrome_dir)
+	
+run_gui_applescript('display dialog "Your new copy of Momiji has been installed." buttons {"OK"}')

@@ -1,5 +1,5 @@
-// MACOSX_DEPLOYMENT_TARGET=10.6 clang $filename -dynamiclib -framework AppKit -framework Foundation ZKSwizzle.m -o /Applications/Firefox.app/Contents/Frameworks/FirefoxModifier.dylib
-// MACOSX_DEPLOYMENT_TARGET=10.6 clang $filename -dynamiclib -DSSB_MODE -framework AppKit -framework Foundation ZKSwizzle.m -o ~/Desktop/wat/Web\ App\ Template.app/Contents/Frameworks/FirefoxModifier.dylib && ~/Desktop/WAT/Extras/Update\ Existing\ Apps.command --update-apps-folder
+// MACOSX_DEPLOYMENT_TARGET=10.6 clang FirefoxModifier.m -dynamiclib -framework AppKit -framework Foundation ZKSwizzle.m -o /Applications/Momiji.app/Contents/Frameworks/FirefoxModifier.dylib
+// MACOSX_DEPLOYMENT_TARGET=10.6 clang FirefoxModifier.m -dynamiclib -DSSB_MODE -framework AppKit -framework Foundation ZKSwizzle.m -o ~/Desktop/wat/Web\ App\ Template.app/Contents/Frameworks/FirefoxModifier.dylib && ~/Desktop/WAT/Extras/Update\ Existing\ Apps.command --update-apps-folder
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>

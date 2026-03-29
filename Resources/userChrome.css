@@ -1,0 +1,123 @@
+/* OS X 10.9 Mavericks-style Firefox chrome colors */
+
+/* --- Base chrome colors --- */
+:root {
+  --mav-toolbar-top: #e8e8e8;
+  --mav-toolbar-bottom: #cecece;
+  --mav-toolbar-border: #b0b0b0;
+  --mav-inactive-bg: #f6f6f6;
+  --mav-inactive-border: #c8c8c8;
+  --mav-tab-inactive: #d5d5d5;
+  --mav-tab-inactive-border: #b8b8b8;
+  --mav-separator: #b3b3b3;
+  --mav-urlbar-bg: #ffffff;
+  --mav-urlbar-border: #9a9a9a;
+  --mav-text: #333333;
+  --mav-text-inactive: #999999;
+}
+
+/* --- Titlebar & tab strip --- */
+#titlebar,
+#TabsToolbar {
+  background: linear-gradient(to bottom, var(--mav-toolbar-top), #d8d8d8) !important;
+}
+
+/* --- Navigation toolbar --- */
+#nav-bar {
+  background: linear-gradient(to bottom, #dcdcdc, var(--mav-toolbar-bottom)) !important;
+  border-bottom: 1px solid var(--mav-toolbar-border) !important;
+}
+
+/* --- Active/selected tab --- */
+.tabbrowser-tab[selected] .tab-background {
+  background: linear-gradient(to bottom, #f2f2f2, #e4e4e4) !important;
+  border: 1px solid var(--mav-tab-inactive-border) !important;
+  border-bottom: none !important;
+}
+
+.tabbrowser-tab[selected] .tab-label {
+  color: var(--mav-text) !important;
+}
+
+/* --- Inactive tabs --- */
+.tabbrowser-tab:not([selected]) .tab-background {
+  background: linear-gradient(to bottom, #d2d2d2, #c4c4c4) !important;
+}
+
+.tabbrowser-tab:not([selected]) .tab-label {
+  color: #555555 !important;
+}
+
+.tabbrowser-tab:not([selected]):hover .tab-background {
+  background: linear-gradient(to bottom, #dcdcdc, #d0d0d0) !important;
+}
+
+/* --- URL bar --- */
+#urlbar-background, .urlbar-background {
+  background-color: var(--mav-urlbar-bg) !important;
+  border: 1px solid var(--mav-urlbar-border) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08) !important;
+}
+
+#urlbar-input {
+  color: var(--mav-text) !important;
+}
+
+/* --- Separator lines between toolbars --- */
+#TabsToolbar:not([collapsed="true"]) + #nav-bar {
+  border-top: 1px solid var(--mav-separator) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+}
+
+/* --- Bookmarks toolbar --- */
+#PersonalToolbar {
+  background: linear-gradient(to bottom, #d8d8d8, #cccccc) !important;
+  border-bottom: 1px solid var(--mav-toolbar-border) !important;
+}
+
+/* --- Inactive window: wash out to lighter gray --- */
+:root:-moz-window-inactive #titlebar,
+:root:-moz-window-inactive #TabsToolbar {
+  background: var(--mav-inactive-bg) !important;
+}
+
+:root:-moz-window-inactive #nav-bar {
+  background: linear-gradient(to bottom, #f2f2f2, #ececec) !important;
+}
+
+:root:-moz-window-inactive #navigator-toolbox {
+  background: var(--mav-inactive-bg) !important;
+  border-bottom-color: var(--mav-inactive-border) !important;
+}
+
+:root:-moz-window-inactive .tabbrowser-tab[selected] .tab-background {
+  background: #fafafa !important;
+}
+
+:root:-moz-window-inactive .tabbrowser-tab:not([selected]) .tab-background {
+  background: #ececec !important;
+}
+
+:root:-moz-window-inactive .tabbrowser-tab .tab-label {
+  color: var(--mav-text-inactive) !important;
+}
+
+:root:-moz-window-inactive .urlbar-background {
+  border-color: var(--mav-inactive-border) !important;
+}
+
+:root:-moz-window-inactive #PersonalToolbar {
+  background: linear-gradient(to bottom, #f0f0f0, #e8e8e8) !important;
+}
+
+/* --- Tabs don't float --- */
+
+#TabsToolbar {
+	transform: translateY(4px) !important;
+	padding: 0 4px 0 4px !important;
+	margin-top: -4px;
+}
+
+#TabsToolbar .tab-background, #tabs-newtab-button > .toolbarbutton-icon {
+	border-radius: var(--tab-border-radius) var(--tab-border-radius) 0px 0px !important; 
+}
