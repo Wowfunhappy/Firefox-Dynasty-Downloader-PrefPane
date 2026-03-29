@@ -757,7 +757,8 @@ if ([[self title] isEqualToString:@"MozillaProject"]) {
 		
 		NSMenuItem *copyLinkItem = [self itemWithTitle:@"Copy Link"];
 		if (copyLinkItem && ![copyLinkItem image]) [self removeItem:copyLinkItem];
-		[self removeItemWithTitle:@"Copy Clean Link"];
+		[self removeItemWithTitle:@"Copy Clean Link to Highlight"];
+		[self removeItemWithPrefix:@"Copy Clean Link"];
 		[self removeItemWithTitle:@"Save Link As…"];
 		[self removeItemWithPrefix:@"Bookmark"];
 		[self removeItemWithSuffix:@"in New Tab"];
