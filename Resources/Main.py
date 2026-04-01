@@ -163,8 +163,8 @@ shutil.copy2(get_path_to_me() + "/FirefoxModifier.dylib", temp_directory + "/Fra
 run_shell(get_path_to_me(escape_chars=True) + "/insert_dylib --inplace --strip-codesig --all-yes @executable_path/../Frameworks/FirefoxModifier.dylib " + temp_directory + "/MacOS/firefox")
 
 # Copy libMacportsLegacySystem.B.dylib and rewrite all MacOS binaries to use it
-shutil.copy2(get_path_to_me() + "/libMacportsLegacySystem.B.dylib", temp_directory + "/Frameworks/")
-run_shell("install_name_tool -change /usr/lib/libSystem.B.dylib @executable_path/../Frameworks/libMacportsLegacySystem.B.dylib " + temp_directory + "/MacOS/libgkcodecs.dylib")
+shutil.copy2(get_path_to_me() + "/libMacportsLegacySystem.B.dylib", temp_directory + "/MacOS/")
+run_shell(get_path_to_me(escape_chars=True) + "/install_name_tool -change /usr/lib/libSystem.B.dylib @executable_path/libMacportsLegacySystem.B.dylib " + temp_directory + "/MacOS/libgkcodecs.dylib")
 
 # Codesign everything
 for root, dirs, files in os.walk(temp_directory):
