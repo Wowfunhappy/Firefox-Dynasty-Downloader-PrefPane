@@ -115,6 +115,8 @@ def download_firefox_contents_to_temporary_directory(download_url):
 		command = "{}/curl --cacert {}/cacert.pem -L {} -o {}".format(my_path, my_path, download_url, temp_file_path)
 		run_shell(command)
 		
+		if os.path.exists("/Volumes/Momiji"):
+			run_shell('hdiutil detach "/Volumes/Momiji"')
 		run_shell("hdiutil attach -nobrowse -plist " + temp_file_path)
 		temp_dir = tempfile.mkdtemp()
 		shutil.copytree("/Volumes/Momiji/Momiji.app/Contents/", os.path.join(temp_dir, 'Contents'))
@@ -160,7 +162,7 @@ shutil.copy2(get_path_to_me() + "/document.icns", temp_directory + "/Resources/"
 
 # Copy FirefoxModifier.dylib and inject into binary
 shutil.copy2(get_path_to_me() + "/FirefoxModifier.dylib", temp_directory + "/Frameworks/")
-run_shell(get_path_to_me(escape_chars=True) + "/insert_dylib --inplace --strip-codesig --all-yes @executable_path/../Frameworks/FirefoxModifier.dylib " + temp_directory + "/MacOS/firefox")
+run_shell(get_path_to_me(escape_chars=True) + "/insert_dylib --inplace --strip-codesig --all-yes @executable_path/../Frameworks/FirefoxModifier.dylib " + temp_directory + "/MacOS/momiji")
 
 # Copy libMacportsLegacySystem.B.dylib and rewrite all MacOS binaries to use it
 shutil.copy2(get_path_to_me() + "/libMacportsLegacySystem.B.dylib", temp_directory + "/MacOS/")
@@ -172,7 +174,7 @@ for root, dirs, files in os.walk(temp_directory):
 		file_path = os.path.join(root, file)
 		run_shell(get_path_to_me(escape_chars=True) + "/jtool2 --sign --inplace " + file_path)
 
-firefox_path = get_path_of_application("org.mozilla.momiji")
+firefox_path = get_path_of_application("net.momiji.momiji")
 if not firefox_path or not is_on_startup_disk(firefox_path) or is_in_trash(firefox_path):
 	firefox_path = run_gui_applescript('get POSIX path of (choose folder with prompt "Where would you like to save the Momiji app?" default location "Applications") as text') + "/Momiji.app"
 
@@ -195,7 +197,7 @@ profiles_dir = os.path.expanduser("~/Library/Application Support/Firefox/Profile
 if not os.path.exists(profiles_dir):
 	# No Firefox profile exists yet. Make one.
 	devnull = open(os.devnull, 'w')
-	firefox_bin = os.path.join(firefox_path, "Contents", "MacOS", "firefox")
+	firefox_bin = os.path.join(firefox_path, "Contents", "MacOS", "momiji")
 	process = subprocess.Popen([firefox_bin, "-headless"], stdout=devnull, stderr=devnull)
 	time.sleep(5)
 	process.kill()
