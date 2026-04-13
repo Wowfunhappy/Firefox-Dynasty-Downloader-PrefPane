@@ -113,15 +113,27 @@ def download_firefox_contents_to_temporary_directory(download_url):
 	try:
 		my_path = get_path_to_me(escape_chars=True)
 		command = "{}/curl --cacert {}/cacert.pem -L {} -o {}".format(my_path, my_path, download_url, temp_file_path)
+		print(command)
 		run_shell(command)
 		
-		if os.path.exists("/Volumes/Momiji"):
-			run_shell('hdiutil detach "/Volumes/Momiji"')
-		run_shell("hdiutil attach -nobrowse -plist " + temp_file_path)
 		temp_dir = tempfile.mkdtemp()
-		shutil.copytree("/Volumes/Momiji/Momiji.app/Contents/", os.path.join(temp_dir, 'Contents'))
+		with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+			for member in zip_ref.infolist():
+				if member.filename.startswith('Momiji.app/Contents/'):
+					member_path = member.filename.split('/', 1)[-1]
+					target_path = os.path.join(temp_dir, member_path)
+					
+					if member.filename.endswith('/'):
+						if not os.path.exists(target_path):
+							os.makedirs(target_path)
+					else:
+						with open(target_path, 'wb') as out_file:
+							out_file.write(zip_ref.read(member))
+							
+						if member.external_attr >> 16 & stat.S_IXUSR:
+							st = os.stat(target_path)
+							os.chmod(target_path, st.st_mode | stat.S_IEXEC)
 		
-		run_shell('hdiutil detach "/Volumes/Momiji"')
 		os.remove(temp_file_path)
 		return os.path.join(temp_dir, 'Contents')
 		
@@ -129,7 +141,11 @@ def download_firefox_contents_to_temporary_directory(download_url):
 		run_gui_applescript('display alert "Error downloading file: ' + str(e) + '" as critical')
 		exit()
 
-
+def find_asset(assets, predicate):
+    for a in assets:
+        if predicate(a["name"]):
+            return a
+    return None
 
 
 # MAIN SCRIPT START
@@ -149,8 +165,22 @@ for release in releases:
 	if release["tag_name"] == selected_build_str:
 		selected_build = release
 
-download_url = selected_build["assets"][0]["browser_download_url"]
+# Find the right download URL for this OS
+asset_suffix = ""
+if LooseVersion(platform.mac_ver()[0]) < LooseVersion("10.9"):
+	asset_suffix = "_macOS10.7-10.8.zip"
+elif LooseVersion(platform.mac_ver()[0]) < LooseVersion("10.12"):
+	asset_suffix = "_macOS10.9-10.11.zip"
+else:
+	asset_suffix = "_macOS10.12-10.14.zip"
+asset_to_download = find_asset(selected_build["assets"], lambda n: n.endswith(asset_suffix))
+if asset_to_download is None:
+	run_gui_applescript('display alert "Download failed" as critical')
+	exit()
+download_url = asset_to_download["browser_download_url"]
+
 temp_directory = download_firefox_contents_to_temporary_directory(download_url)
+print(temp_directory)
 
 # Copy preferred defaults
 shutil.copytree(get_path_to_me() + "/defaults", temp_directory + "/Resources/defaults")
@@ -164,12 +194,8 @@ shutil.copy2(get_path_to_me() + "/document.icns", temp_directory + "/Resources/"
 shutil.copy2(get_path_to_me() + "/FirefoxModifier.dylib", temp_directory + "/Frameworks/")
 run_shell(get_path_to_me(escape_chars=True) + "/insert_dylib --inplace --strip-codesig --all-yes @executable_path/../Frameworks/FirefoxModifier.dylib " + temp_directory + "/MacOS/momiji")
 
-# Copy libMacportsLegacySystem.B.dylib and rewrite all MacOS binaries to use it
-shutil.copy2(get_path_to_me() + "/libMacportsLegacySystem.B.dylib", temp_directory + "/MacOS/")
-run_shell(get_path_to_me(escape_chars=True) + "/install_name_tool -change /usr/lib/libSystem.B.dylib @executable_path/libMacportsLegacySystem.B.dylib " + temp_directory + "/MacOS/libgkcodecs.dylib")
-
 # Codesign everything
-for root, dirs, files in os.walk(temp_directory):
+for root, dirs, files in os.walk(temp_directory, topdown=False):
 	for file in files:
 		file_path = os.path.join(root, file)
 		run_shell(get_path_to_me(escape_chars=True) + "/jtool2 --sign --inplace " + file_path)
