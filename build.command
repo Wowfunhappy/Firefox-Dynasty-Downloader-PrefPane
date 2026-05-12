@@ -7,7 +7,7 @@ ICON_LABEL="Momiji \nDownloader"
 BUNDLE_IDENTIFIER="Wowfunhappy.Momiji-Downloader"
 OUTPUT_DIR="${TITLE}.prefPane"
 
-rm -r "$OUTPUT_DIR" || true
+rm -rf "$OUTPUT_DIR"
 
 # Create necessary directories
 mkdir -p "${OUTPUT_DIR}/Contents/MacOS"
