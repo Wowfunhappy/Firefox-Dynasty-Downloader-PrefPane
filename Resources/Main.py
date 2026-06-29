@@ -200,7 +200,7 @@ for root, dirs, files in os.walk(temp_directory, topdown=False):
 		file_path = os.path.join(root, file)
 		run_shell(get_path_to_me(escape_chars=True) + "/jtool2 --sign --inplace " + file_path)
 
-firefox_path = get_path_of_application("net.momiji.momiji")
+firefox_path = get_path_of_application("org.mozilla.momiji")
 if not firefox_path or not is_on_startup_disk(firefox_path) or is_in_trash(firefox_path):
 	firefox_path = run_gui_applescript('get POSIX path of (choose folder with prompt "Where would you like to save the Momiji app?" default location "Applications") as text') + "/Momiji.app"
 
